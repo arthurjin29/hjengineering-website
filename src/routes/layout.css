@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+
+@theme {
+	/* Backgrounds */
+	--color-bg-dark: #0f172a;
+	--color-bg-card-dark: #1e293b;
+	--color-bg-light: #ffffff;
+	--color-bg-subtle: #f1f5f9;
+	--color-bg-card: #f8fafc;
+
+	/* Primary accent */
+	--color-primary: #06b6d4;
+	--color-primary-text: #0891b2;
+	--color-primary-hover: #0e7490;
+
+	/* Text */
+	--color-text-dark: #0f172a;
+	--color-text-body: #475569;
+	--color-text-muted: #64748b;
+	--color-text-light: #f1f5f9;
+	--color-text-faint: #94a3b8;
+
+	/* Borders */
+	--color-border: #e2e8f0;
+
+	/* Footer */
+	--color-footer: #020617;
+
+	/* Fonts */
+	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Base styles */
+body {
+	font-family: var(--font-sans);
+	color: var(--color-text-body);
+	line-height: 1.7;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus styles — accessible cyan outline */
+:focus-visible {
+	outline: 2px solid var(--color-primary-text);
+	outline-offset: 2px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
