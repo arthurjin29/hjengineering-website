@@ -160,11 +160,17 @@ Content for all 4 services:
 
 - **Authenticated** — requires Google OAuth sign-in
 - Unauthenticated users see a landing page explaining the tool + "Sign in with Google" button
-- If signed in but not on the whitelist: "Access pending — contact HJ Engineering for access"
+- If sign-in denied (not whitelisted): "Access pending — contact HJ Engineering for access"
 - Authorized users get the full Leaflet map UI
 - **Backend:** Connects to the existing FastAPI backend (`D:\Access_map_project`) deployed separately
-- The SvelteKit frontend embeds the Leaflet map + controls, API calls go to the FastAPI server
-- Permit data is fetched from the backend API — the SvelteKit app never stores permit data locally
+- **API proxy (security-critical):** The browser NEVER calls FastAPI directly. All permit API requests go through SvelteKit server routes (`src/routes/api/access-map/[...path]/+server.ts`) which:
+  1. Verify the user's Auth.js session is valid
+  2. Re-check the user's email against the Vercel KV whitelist
+  3. Forward the request to FastAPI with a shared secret header (`X-Internal-Auth`)
+  4. Return the FastAPI response to the client
+- FastAPI rejects any request without the valid `X-Internal-Auth` header — it only trusts the SvelteKit server
+- `ACCESS_MAP_API_URL` is a private server-side env var (no `PUBLIC_` prefix) — never exposed to the browser
+- Permit data is fetched via the proxy — the SvelteKit app never stores permit data locally
 
 ### 5.8 Contact (`/contact`)
 
@@ -194,20 +200,25 @@ Content for all 4 services:
 User clicks "Sign in with Google" on /tools/access-map
   → Google OAuth consent screen
   → Callback to /auth/callback/google
-  → Auth.js creates session
-  → Check email against whitelist
-  → If approved: redirect to /tools/access-map (full UI)
-  → If not approved: show "Access pending" message
+  → Auth.js signIn callback checks email against Vercel KV whitelist
+  → If NOT whitelisted: session creation DENIED, redirect to /tools/access-map with ?denied=true
+  → If whitelisted: Auth.js creates JWT session
+  → Redirect to /tools/access-map (full UI)
 ```
+
+Non-whitelisted users never get a session. The `/tools/access-map` page checks for `?denied=true` query param and shows "Access pending — contact HJ Engineering" message.
 
 ### 6.2 Implementation
 
 - **Library:** Auth.js (`@auth/sveltekit`)
 - **Provider:** Google OAuth only
-- **Session:** JWT-based (stateless, no session DB needed)
+- **Session:** JWT-based, 1-hour expiry. Short expiry ensures that if a user is removed from the whitelist, access is revoked within 1 hour without needing a session revocation store.
+- **Whitelist enforcement:** Checked in the Auth.js `signIn` callback (server-side, before session creation). Also re-checked on every `/tools/access-map` page load via `+page.server.ts` as a defence-in-depth measure.
 - **Whitelist store:** Vercel KV (Redis-based key-value store, free tier: 30k requests/month). Stores approved emails as a Set. Vercel's filesystem is read-only at runtime, so a JSON file won't work for admin CRUD. If Vercel KV is overkill at launch, an alternative is Turso (SQLite edge DB, also free tier).
-- **Admin route:** `/admin/whitelist` — protected by checking session email against a hardcoded admin email (Arthur's)
+- **Admin emails:** Stored in Vercel KV alongside the whitelist (key: `admins`, type: Set). Avoids hardcoding — if Arthur changes Google accounts or wants to add another admin, it's a KV update, not a code deploy.
+- **Admin route:** `/admin/whitelist` — protected by checking session email against the `admins` set in Vercel KV.
 - **Scope:** Only `/tools/access-map` requires auth. All other pages are fully public.
+- **Server-side only:** All auth checks use `+page.server.ts` or `+layout.server.ts`. No client-side auth guards — prevents leaking UI/data before authorization.
 
 ### 6.3 Google OAuth Setup
 
@@ -245,8 +256,9 @@ User clicks "Sign in with Google" on /tools/access-map
 - **Build:** `npm run build` via Vercel CI
 - **Preview:** Vercel preview deployments on branches
 - **DNS:** Point `hjengineering.com.au` to Vercel when ready (CNAME or nameservers)
-- **Access Map backend:** Deployed separately (FastAPI on a VPS or similar). The SvelteKit app calls it via `PUBLIC_ACCESS_MAP_API_URL` env var.
-- **Env vars on Vercel:** `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_SECRET`, `PUBLIC_ACCESS_MAP_API_URL`
+- **Access Map backend:** Deployed separately (FastAPI on a VPS or similar). The SvelteKit server proxies requests to it via `ACCESS_MAP_API_URL` (private, server-side only). FastAPI validates an `X-Internal-Auth` shared secret on every request.
+- **Env vars on Vercel:** `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_SECRET`, `ACCESS_MAP_API_URL`, `ACCESS_MAP_INTERNAL_SECRET`
+- **Observability:** Sentry (free tier) for error tracking. Auth events (sign-in, denied, whitelist changes) logged via `console.log` in server routes — visible in Vercel's function logs.
 
 ## 10. File Structure
 
@@ -271,6 +283,9 @@ hjengineering-website/
 │   │   │       └── +page.server.ts  Auth check + whitelist
 │   │   ├── contact/+page.svelte
 │   │   ├── portfolio/+page.svelte
+│   │   ├── api/
+│   │   │   └── access-map/
+│   │   │       └── [...path]/+server.ts  Proxy to FastAPI (auth + whitelist check)
 │   │   ├── auth/
 │   │   │   └── [...auth]/+server.ts Auth.js catch-all
 │   │   └── admin/
