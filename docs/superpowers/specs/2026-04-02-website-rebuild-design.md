@@ -55,18 +55,21 @@ hjengineering.com.au
 
 The site uses a **light background** for content areas with **dark sections** for the hero and bottom CTA only.
 
+**WCAG note:** `#06b6d4` (Cyan 500) on white is only ~3.1:1 contrast — **fails WCAG AA for body text**. Use `#0891b2` (Cyan 600, ~4.5:1) for all text links and interactive labels. Reserve Cyan 500 for decorative elements only (borders, icons, large heading accents).
+
 | Token | Hex | Usage |
 |-------|-----|-------|
 | `--bg-dark` | `#0f172a` (Slate 900) | Hero, CTA sections |
 | `--bg-card-dark` | `#1e293b` (Slate 800) | Dark section cards |
 | `--bg-light` | `#ffffff` | Main content background |
 | `--bg-subtle` | `#f1f5f9` (Slate 100) | Alternating sections |
-| `--primary` | `#06b6d4` (Cyan 500) | Accents, links, highlights |
-| `--primary-hover` | `#0891b2` (Cyan 600) | Hover states, credentials bar |
+| `--primary` | `#06b6d4` (Cyan 500) | Decorative accents only (borders, icons, large headings) |
+| `--primary-text` | `#0891b2` (Cyan 600) | Links, interactive labels, credentials bar — WCAG AA compliant |
+| `--primary-hover` | `#0e7490` (Cyan 700) | Hover states on text links |
 | `--text-dark` | `#0f172a` | Headings on light bg |
-| `--text-body` | `#64748b` (Slate 500) | Body text on light bg |
+| `--text-body` | `#475569` (Slate 600) | Body text on light bg (~7:1 contrast) |
 | `--text-light` | `#f1f5f9` | Text on dark bg |
-| `--text-muted` | `#94a3b8` (Slate 400) | Secondary text |
+| `--text-muted` | `#64748b` (Slate 500) | Secondary text (~4.6:1 — passes AA) |
 | `--border` | `#e2e8f0` (Slate 200) | Card borders on light bg |
 
 ### 4.2 Typography
@@ -174,10 +177,11 @@ Content for all 4 services:
 
 ### 5.8 Contact (`/contact`)
 
-- Contact form (name, email, phone, company, message)
-- Form submissions: sent via a form service (Formspree or Vercel serverless function that sends email)
+- Contact form (name, email, phone, company, message) + hidden honeypot field for spam
+- **Form backend:** SvelteKit form action in `+page.server.ts` — validates inputs, applies rate limit, sends email via Resend (or Formspree as fallback). Built-in CSRF via SvelteKit form actions.
 - Display: phone number, email, ABN
 - No physical address (home-based consultancy)
+- Success/error states rendered server-side (progressive enhancement — works without JS)
 
 ### 5.9 Portfolio (`/portfolio`)
 
@@ -244,29 +248,111 @@ Non-whitelisted users never get a session. The `/tools/access-map` page checks f
 
 ## 8. SEO & Performance
 
-- **Meta tags:** Per-page title, description, og:image via SvelteKit `+page.ts` load functions
-- **Sitemap:** Auto-generated via `@sveltejs/adapter-vercel` or a custom endpoint
-- **Structured data:** LocalBusiness schema on homepage (JSON-LD)
-- **Performance:** SvelteKit SSR for all marketing pages, CSR for tools. Images optimized via `@sveltejs/enhanced-img` or Vercel Image Optimization.
+### 8.1 Meta Tags & SEO Components
+
+- **Reusable `SeoMeta.svelte` component** — imported per page, sets `<title>`, `<meta name="description">`, Open Graph (`og:title`, `og:description`, `og:image`, `og:url`), and Twitter Card tags
+- **Per-page data:** Each `+page.ts` or `+page.server.ts` `load` function returns SEO fields consumed by `SeoMeta.svelte`
+- **`robots.txt`:** Static file at `static/robots.txt` — allows all public routes, disallows `/admin/*` and `/auth/*`
+- **`sitemap.xml`:** Dynamic endpoint at `src/routes/sitemap.xml/+server.ts` — auto-generates from known routes + blog post slugs. Submit to Google Search Console after launch.
+- **RSS feed:** `src/routes/rss.xml/+server.ts` — Atom/RSS feed of blog posts for syndication
+
+### 8.2 Structured Data (JSON-LD)
+
+Inject via `<script type="application/ld+json">` in relevant `+page.svelte` files:
+
+| Schema | Page | Fields |
+|--------|------|--------|
+| `Organization` | Homepage (also in `app.html`) | name, logo, url, contactPoint, sameAs (LinkedIn, GitHub) |
+| `ProfessionalService` | Homepage | serviceType, areaServed, priceRange |
+| `Service` | `/services/[slug]` | name, description, provider |
+| `BlogPosting` | `/blog/[slug]` | headline, author, datePublished, image, description |
+| `BreadcrumbList` | All pages except `/` | itemListElement hierarchy |
+| `ContactPoint` | `/contact` | telephone, email, contactType |
+
+### 8.3 Performance
+
+- **SSR** for all marketing pages, **CSR** for tools (sling-calc, access-map)
+- **Dynamic imports:** `import()` for sling-calc engine and Leaflet — only loaded on their routes, not in main bundle
+- **Image optimization:** `vite-imagetools` at build time — outputs WebP/AVIF with responsive `srcset`. All below-fold images use `loading="lazy"`. Hero images use `<link rel="preload">` with `fetchpriority="high"`.
+- **Font loading:**
+  - Self-host Inter and JetBrains Mono (no Google Fonts request)
+  - `font-display: swap` on all `@font-face` declarations
+  - `<link rel="preload" as="font" crossorigin>` for Inter Regular + Bold in `app.html`
+  - Subset to Latin + Latin Extended only
+- **Third-party scripts:** Sentry and Vercel Analytics loaded with `async` / `defer` — non-render-blocking
 - **Analytics:** Vercel Analytics (privacy-friendly, no cookie banner needed)
 
-## 9. Deployment
+## 9. Security
+
+### 9.1 Content Security Policy (CSP)
+
+Deployed via SvelteKit hooks (`src/hooks.server.ts`). Start in **report-only mode** during development, switch to enforcing after launch.
+
+Allowed sources:
+- `self` for scripts, styles, fonts, images
+- `fonts.gstatic.com` only if NOT self-hosting fonts (we are self-hosting, so not needed)
+- `accounts.google.com` for OAuth redirects
+- `*.sentry.io` for error reporting
+- `*.vercel-analytics.com` for analytics
+- `unsafe-inline` for Tailwind/Svelte style injection (or use nonces if feasible)
+
+### 9.2 Rate Limiting
+
+- **Contact form:** Server-side IP-based throttle (max 5 submissions per IP per hour) via Vercel KV counter with TTL
+- **Auth routes:** Auth.js has built-in CSRF protection; no additional rate limiting needed at launch
+
+### 9.3 Input Validation
+
+- **Contact form:** Server-side validation in SvelteKit form action — validate email format, message length, honeypot field for spam
+- **Sling calculator:** Client-side only (no server calls), but validate numeric ranges to prevent NaN/Infinity results
+- **Admin whitelist:** Validate email format before writing to Vercel KV
+
+## 10. Deployment
 
 - **Adapter:** `@sveltejs/adapter-vercel`
 - **Build:** `npm run build` via Vercel CI
 - **Preview:** Vercel preview deployments on branches
-- **DNS:** Point `hjengineering.com.au` to Vercel when ready (CNAME or nameservers)
+- **DNS:** Point `hjengineering.com.au` to Vercel when ready (CNAME or nameservers). **Tip:** Lower existing DNS TTL to 300s 24-48 hours before cutover to speed propagation.
 - **Access Map backend:** Deployed separately (FastAPI on a VPS or similar). The SvelteKit server proxies requests to it via `ACCESS_MAP_API_URL` (private, server-side only). FastAPI validates an `X-Internal-Auth` shared secret on every request.
 - **Env vars on Vercel:** `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_SECRET`, `ACCESS_MAP_API_URL`, `ACCESS_MAP_INTERNAL_SECRET`
-- **Observability:** Sentry (free tier) for error tracking. Auth events (sign-in, denied, whitelist changes) logged via `console.log` in server routes — visible in Vercel's function logs.
+- **Observability:** Sentry (free tier) for error tracking — loaded async, non-render-blocking. Auth events (sign-in, denied, whitelist changes) logged via `console.log` in server routes — visible in Vercel's function logs.
+- **CI checks (future):** ESLint + Prettier (enforced via Vercel build step), `npm audit` for dependency vulnerabilities, Lighthouse CI for performance/a11y regression
 
-## 10. File Structure
+## 11. Shared Infrastructure
+
+### 11.1 Root Layout
+
+`src/routes/+layout.server.ts` loads the Auth.js session on every request. This makes `data.session` available to all pages, so the nav can show "Sign in" / user avatar for authenticated users without per-page boilerplate.
+
+`src/routes/+layout.svelte` renders the global nav (with auth state), footer, and `<slot />` for page content.
+
+### 11.2 Error Page
+
+Custom `src/routes/+error.svelte` — branded error page with:
+- HJ Engineering logo and nav
+- Error code + friendly message
+- "Go back to homepage" CTA
+- Handles 404, 403, 500 gracefully
+
+### 11.3 Accessibility
+
+- **Keyboard navigation:** All interactive elements reachable via Tab. Visible focus indicators (custom cyan outline, not browser default).
+- **ARIA:** Mobile hamburger menu uses `aria-expanded`, `aria-controls`, `aria-label`. Calculator results use `aria-live="polite"` region.
+- **Forms:** All inputs have associated `<label>` elements. Validation errors linked via `aria-describedby`.
+- **Headings:** Strict hierarchy — one `<h1>` per page, `<h2>` for sections, `<h3>` for sub-sections.
+- **Images:** All meaningful images have descriptive `alt` text. Decorative images use `alt=""`.
+- **Reduced motion:** Respect `prefers-reduced-motion` — disable animations/transitions.
+
+## 12. File Structure
 
 ```
 hjengineering-website/
 ├── src/
+│   ├── hooks.server.ts               CSP headers, Auth.js handle
 │   ├── routes/
 │   │   ├── +layout.svelte           Global layout (nav + footer)
+│   │   ├── +layout.server.ts        Load Auth.js session globally
+│   │   ├── +error.svelte            Branded error page
 │   │   ├── +page.svelte             Homepage
 │   │   ├── services/
 │   │   │   ├── +page.svelte         Services index
@@ -292,12 +378,15 @@ hjengineering-website/
 │   │       └── whitelist/
 │   │           ├── +page.svelte     Whitelist management UI
 │   │           └── +page.server.ts  Admin auth check + CRUD
+│   │   ├── sitemap.xml/+server.ts   Dynamic sitemap
+│   │   └── rss.xml/+server.ts       Blog RSS feed
 │   ├── lib/
-│   │   ├── components/              Shared components (Nav, Footer, ServiceCard, etc.)
+│   │   ├── components/              Shared components (Nav, Footer, ServiceCard, SeoMeta, etc.)
 │   │   ├── data/
 │   │   │   └── services.ts          Service content data
 │   │   ├── server/
-│   │   │   └── whitelist.ts         Vercel KV whitelist operations
+│   │   │   ├── whitelist.ts         Vercel KV whitelist operations
+│   │   │   └── rate-limit.ts        IP-based rate limiting via Vercel KV
 │   │   ├── sling-calc/              Ported sling calculator logic
 │   │   └── auth.ts                  Auth.js config (Google provider)
 │   ├── content/
@@ -312,7 +401,7 @@ hjengineering-website/
 └── .env.example                     Template for env vars
 ```
 
-## 11. Content Requiring Arthur's Input
+## 13. Content Requiring Arthur's Input
 
 Before implementation, these items need real content from Arthur:
 
