@@ -374,10 +374,10 @@ hjengineering-website/
 │   │   │       └── [...path]/+server.ts  Proxy to FastAPI (auth + whitelist check)
 │   │   ├── auth/
 │   │   │   └── [...auth]/+server.ts Auth.js catch-all
-│   │   └── admin/
-│   │       └── whitelist/
-│   │           ├── +page.svelte     Whitelist management UI
-│   │           └── +page.server.ts  Admin auth check + CRUD
+│   │   ├── admin/
+│   │   │   └── whitelist/
+│   │   │       ├── +page.svelte     Whitelist management UI
+│   │   │       └── +page.server.ts  Admin auth check + CRUD
 │   │   ├── sitemap.xml/+server.ts   Dynamic sitemap
 │   │   └── rss.xml/+server.ts       Blog RSS feed
 │   ├── lib/

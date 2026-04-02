@@ -29,16 +29,22 @@
 
 ### Steps
 
+1.0. **Preserve existing files** — Back up `docs/` and `.superpowers/` before scaffolding. After `sv create`, restore them into the new project structure. The repo already has 4 commits — scaffold must not clobber existing work.
+
 1.1. **Create SvelteKit project**
 ```bash
 cd "D:\HJ Engineering\hjengineering-website"
-npx sv create . --template minimal --types ts
+# Move existing dirs out temporarily
+mv docs docs_bak && mv .superpowers .superpowers_bak
+npx sv create . --template minimal --types ts --force
+# Restore
+mv docs_bak docs && mv .superpowers_bak .superpowers
 ```
 Select: Tailwind CSS 4, ESLint, Prettier
 
 1.2. **Install dependencies**
 ```bash
-npm install @sveltejs/adapter-vercel @auth/sveltekit @vercel/kv
+npm install @sveltejs/adapter-vercel @auth/sveltekit @vercel/kv resend
 npm install -D mdsvex @fontsource/inter @fontsource/jetbrains-mono
 ```
 
@@ -47,27 +53,46 @@ npm install -D mdsvex @fontsource/inter @fontsource/jetbrains-mono
 - mdsvex preprocessor for `.md` files in `src/content/blog/`
 - Alias `$content` → `src/content`
 
-1.4. **Configure Tailwind CSS** (`app.css` or `tailwind.config.js`)
-- Extend theme with design tokens from spec §4.1:
-  ```
-  --bg-dark: #0f172a       --primary: #06b6d4
-  --bg-card-dark: #1e293b  --primary-text: #0891b2
-  --bg-light: #ffffff      --primary-hover: #0e7490
-  --bg-subtle: #f1f5f9     --text-dark: #0f172a
-  --border: #e2e8f0        --text-body: #475569
-                            --text-muted: #64748b
-                            --text-light: #f1f5f9
-  ```
+1.4. **Configure Tailwind CSS 4** (`src/app.css`)
 
-1.5. **Self-host fonts**
-- Copy Inter (400, 500, 600, 700) and JetBrains Mono (400) woff2 files to `static/fonts/`
-- `@font-face` declarations in `app.css` with `font-display: swap`
-- `<link rel="preload">` for Inter Regular + Bold in `src/app.html`
-- Subset to Latin + Latin Extended
+Tailwind 4 uses **CSS-based configuration** (not `tailwind.config.js`). Define design tokens via `@theme`:
+```css
+@import "tailwindcss";
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+
+@theme {
+  --color-bg-dark: #0f172a;
+  --color-bg-card-dark: #1e293b;
+  --color-bg-light: #ffffff;
+  --color-bg-subtle: #f1f5f9;
+  --color-primary: #06b6d4;
+  --color-primary-text: #0891b2;
+  --color-primary-hover: #0e7490;
+  --color-text-dark: #0f172a;
+  --color-text-body: #475569;
+  --color-text-muted: #64748b;
+  --color-text-light: #f1f5f9;
+  --color-border: #e2e8f0;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+```
+
+No `tailwind.config.js` needed — Tailwind 4 reads `@theme` from CSS directly.
+
+1.5. **Fonts via @fontsource**
+
+Using `@fontsource` packages (installed in 1.2) — they bundle subsetted woff2 files. Imported in `app.css` (step 1.4). Add `font-display: swap` override and `<link rel="preload">` for Inter Regular + Bold in `src/app.html`.
+
+No manual file copying needed — `@fontsource` handles subsetting and file paths.
 
 1.6. **Create `src/app.html`**
-- HTML lang="en-AU"
-- Preload font links
+- HTML `lang="en-AU"`
+- Preload font links for Inter 400 + 700 woff2
 - Vercel Analytics script placeholder (async)
 
 1.7. **Create `.env.example`**
@@ -77,17 +102,24 @@ AUTH_GOOGLE_SECRET=
 AUTH_SECRET=
 ACCESS_MAP_API_URL=
 ACCESS_MAP_INTERNAL_SECRET=
+RESEND_API_KEY=
 ```
 
 1.8. **Update `.gitignore`** — add `.env`, `node_modules`, `.svelte-kit`, `.vercel`
 
-1.9. **Verify:** `npm run dev` starts, `npm run build` succeeds, deploy preview works.
+1.9. **Favicon** — Create or source a simple HJ Engineering favicon (cyan "HJ" monogram on transparent). Place at `static/favicon.ico` + `static/favicon.svg`.
+
+1.10. **Local dev note:** `@vercel/kv` requires a Vercel KV store. For local development, either use `vercel dev` (connects to preview KV store) or create a mock at `src/lib/server/kv-mock.ts` that uses an in-memory `Map`. The mock is swapped out when deploying to Vercel.
+
+1.11. **Verify:** `npm run dev` starts, `npm run build` succeeds, Tailwind classes apply with correct colours.
 
 ### Deliverables
 - [ ] SvelteKit builds clean
-- [ ] Tailwind tokens match spec hex values
-- [ ] Fonts load with `font-display: swap`
+- [ ] Tailwind 4 `@theme` tokens match spec hex values exactly
+- [ ] Fonts load via `@fontsource` with `font-display: swap`
 - [ ] `.env.example` committed (no secrets)
+- [ ] Existing `docs/` and `.superpowers/` preserved
+- [ ] Favicon in place
 
 ---
 
@@ -174,8 +206,9 @@ export const services = [
 
 3.6. **Contact (`src/routes/contact/+page.svelte` + `+page.server.ts`)**
 - Form: name, email, phone (optional), company, message + honeypot
-- Form action: validate server-side, rate limit, send via Resend (or log for now)
-- Success/error states via `form` prop (progressive enhancement)
+- Form action: validate server-side, send via Resend (or `console.log` during dev if no API key)
+- **Rate limiting deferred** — `rate-limit.ts` is created in Phase 5 (uses Vercel KV). Wire into this form action after Phase 5 completes.
+- Success/error states via `form` prop (progressive enhancement — works without JS)
 - Contact details card: email, phone, ABN, PE number
 
 3.7. **Resources (`src/routes/resources/+page.svelte`)** — "Coming soon" placeholder grid. Static file list from `src/lib/data/resources.ts`.
@@ -202,7 +235,7 @@ export const services = [
 
 4.2. **Blog layout** (`src/routes/blog/[slug]/+page.svelte`) — Title, date, read time, rendered markdown content, author byline.
 
-4.3. **Blog index** (`src/routes/blog/+page.svelte` + `+page.ts`) — List posts from `src/content/blog/`, sorted by date. Title, excerpt, date, read time.
+4.3. **Blog index** (`src/routes/blog/+page.svelte` + `+page.server.ts`) — Use `import.meta.glob` in server load to list posts from `src/content/blog/`, sorted by date. Title, excerpt, date, read time.
 
 4.4. **Sample post** (`src/content/blog/hello-world.md`) — Frontmatter: title, date, description. Body: intro to HJ Engineering's blog.
 
@@ -240,6 +273,8 @@ Sitemap: https://hjengineering.com.au/sitemap.xml
 
 5.3. **Whitelist module** (`src/lib/server/whitelist.ts`) — `isWhitelisted(email)`, `addToWhitelist(email)`, `removeFromWhitelist(email)`, `getWhitelist()`, `isAdmin(email)`. All use `@vercel/kv`.
 
+5.3a. **Rate limiting module** (`src/lib/server/rate-limit.ts`) — IP-based counter via `@vercel/kv` with TTL. Created here alongside whitelist since both use KV. Retrofit into contact form action (Phase 3) after this phase completes.
+
 5.4. **Admin whitelist page** (`src/routes/admin/whitelist/+page.server.ts` + `+page.svelte`)
 - `+page.server.ts`: verify session, verify admin, load whitelist, handle add/remove form actions
 - `+page.svelte`: table of emails, add form, remove buttons
@@ -266,21 +301,30 @@ Sitemap: https://hjengineering.com.au/sitemap.xml
 
 ### Steps
 
-6.1. **Copy calculation engine** from `D:\sling-length-calculator` → `src/lib/sling-calc/`
+6.0. **Audit existing calculator** (`D:\sling-length-calculator`)
+- Inventory all calculation modules, config types, and edge cases
+- Note: cascading config physics was fixed (2026-03-22), stinger angle damped solver added (2026-03-26), 5 files still uncommitted
+- Identify diagram renderers (SVG/Canvas) per configuration
+- **Decision point:** exact port (same UI in Svelte) vs. redesigned UI for website context. Recommend exact port first, then iterate.
+
+6.1. **Copy calculation engine** → `src/lib/sling-calc/`
 - Port JavaScript calculation modules to TypeScript
-- All 6 rigging configurations
+- All 6 rigging configurations including cascading physics + damped stinger solver
 - Zero server dependencies — pure client-side
+- Preserve all numerical edge cases (the solver was carefully tuned — don't refactor the math)
 
 6.2. **Calculator page** (`src/routes/tools/sling-calculator/+page.svelte`)
 - Configuration selector (tabs or radio buttons)
 - Input fields for each config's parameters
 - Real-time calculation results
-- Diagram/visualization per config
+- Diagram/visualization per config (port existing SVG renderers)
 - `aria-live="polite"` region for results
 
 6.3. **Dynamic import** — Calculator engine loaded via `import()` so it doesn't bloat the main bundle.
 
 6.4. **Input validation** — Numeric range checks, prevent NaN/Infinity.
+
+6.5. **Verification** — Run side-by-side with existing calculator on known inputs. All 6 configs must produce identical results.
 
 ### Deliverables
 - [ ] All 6 configs calculate correctly
@@ -333,7 +377,7 @@ Sitemap: https://hjengineering.com.au/sitemap.xml
 
 8.1. **CSP headers** — Switch from report-only to enforcing in `hooks.server.ts`. Test all pages work (OAuth, Sentry, Analytics, Leaflet tiles).
 
-8.2. **Rate limiting** (`src/lib/server/rate-limit.ts`) — IP-based counter via Vercel KV. Apply to contact form action.
+8.2. **Wire rate limiting** — `rate-limit.ts` was created in Phase 5. Verify it's applied to the contact form action (Phase 3.6) and test with Vercel KV on preview deployment.
 
 8.3. **Image optimization** — `vite-imagetools` config. Convert any static images to WebP. Add `loading="lazy"` to below-fold images.
 
@@ -383,14 +427,16 @@ Sitemap: https://hjengineering.com.au/sitemap.xml
 ```
 Phase 1 (Scaffold) → Phase 2 (Layout) → Phase 3 (Marketing Pages)
                                        → Phase 4 (Blog)
-                   → Phase 5 (Auth) → Phase 7 (Access Map)
-                                    → Phase 6 (Sling Calc) [independent]
+                                       → Phase 5 (Auth) → Phase 7 (Access Map)
+                                       → Phase 6 (Sling Calc) [independent]
 Phase 3-7 all done → Phase 8 (Security) → Phase 9 (Deploy)
 ```
 
-Phases 3, 4, and 6 can run in parallel after Phase 2.
-Phase 7 depends on Phase 5 (auth).
-Phase 8 depends on all feature phases.
+- Phase 2 is the gate — everything after it needs the root layout, nav, footer, hooks, and auth.ts skeleton.
+- Phases 3, 4, 5, and 6 can run in parallel after Phase 2.
+- Phase 7 depends on Phase 5 (auth + whitelist must exist before gating access map).
+- Phase 8 depends on all feature phases (can't audit what isn't built).
+- Phase 6 (Sling Calc) has no auth dependency — fully independent after Phase 2.
 
 ---
 
