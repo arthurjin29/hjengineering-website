@@ -1,14 +1,19 @@
 import type { Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
+import { env } from '$env/dynamic/private';
 
-// Auth.js handle — disabled until Google OAuth credentials are configured.
-// Uncomment after setting AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_SECRET in .env
-// import { handle as authHandle } from '$lib/auth';
+const authHandle: Handle = async ({ event, resolve }) => {
+	// Only enable Auth.js when credentials are configured
+	if (env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET && env.AUTH_SECRET) {
+		const { handle } = await import('$lib/auth');
+		return handle({ event, resolve });
+	}
+	return resolve(event);
+};
 
 const cspHandle: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event);
 
-	// CSP in report-only mode during development
 	response.headers.set(
 		'Content-Security-Policy-Report-Only',
 		[
@@ -25,5 +30,4 @@ const cspHandle: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-// When auth is enabled, use: sequence(authHandle, cspHandle)
-export const handle = sequence(cspHandle);
+export const handle = sequence(authHandle, cspHandle);

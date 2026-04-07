@@ -1,8 +1,15 @@
 import type { Actions } from './$types';
 import { fail } from '@sveltejs/kit';
+import { checkRateLimit } from '$lib/server/rate-limit';
 
 export const actions = {
-	default: async ({ request }) => {
+	default: async ({ request, getClientAddress }) => {
+		const ip = getClientAddress();
+		const { allowed } = await checkRateLimit(ip);
+		if (!allowed) {
+			return fail(429, { error: 'Too many submissions. Please try again in a minute.' });
+		}
+
 		const data = await request.formData();
 
 		const name = data.get('name')?.toString().trim() ?? '';
