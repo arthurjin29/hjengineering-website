@@ -1,6 +1,10 @@
 <script lang="ts">
 	import SeoMeta from '$lib/components/SeoMeta.svelte';
+	import SlingDiagram from '$lib/sling-calc/SlingDiagram.svelte';
 	import { calculate, CONFIG_LABELS, type ConfigType, type CalcResult, type SharedInputs, type ConfigInputs } from '$lib/sling-calc';
+
+	let SlingScene3D: typeof import('$lib/sling-calc/SlingScene3D.svelte').default | null = $state(null);
+	import('$lib/sling-calc/SlingScene3D.svelte').then(m => { SlingScene3D = m.default; });
 
 	let configType: ConfigType = $state('direct');
 	let error: string = $state('');
@@ -342,5 +346,24 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- 3D View (full width below inputs/results grid) -->
+		{#if results && SlingScene3D}
+			<div class="mt-8">
+				<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-text-dark">3D View</h2>
+				<div class="rounded-lg border border-border bg-white p-2">
+					<SlingScene3D {results} cog={{ x: cogX, y: cogY, z: cogZ }} />
+				</div>
+				<p class="mt-1 text-xs text-text-muted">Click and drag to rotate. Scroll to zoom.</p>
+			</div>
+		{/if}
+
+		<!-- 2D Diagrams -->
+		{#if results}
+			<div class="mt-8">
+				<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-text-dark">2D Diagrams</h2>
+				<SlingDiagram {results} cog={{ x: cogX, y: cogY, z: cogZ }} />
+			</div>
+		{/if}
 	</div>
 </section>
