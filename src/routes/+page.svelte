@@ -69,7 +69,7 @@
 		{/each}
 	</div>
 	<p class="mt-4 text-center text-xs text-text-faint">
-		Work performed in accordance with AS 3775, AS 4100, AS 1170 and relevant Australian Standards
+		Work performed in accordance with relevant Australian Standards
 	</p>
 </section>
 
