@@ -21,3 +21,11 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+.vercel
+
+# AS 5222:2021 — licensed copy + extraction artifacts (copyright Standards Australia)
+AS_5222-2021*.pdf
+AS_5222-2021*.txt
+AS5222_pages/
+AS5222_flipped_pages/

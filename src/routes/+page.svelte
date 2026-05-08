@@ -82,12 +82,20 @@
 			Purpose-built tools for crane and rigging professionals
 		</p>
 	</div>
-	<div class="mx-auto grid max-w-4xl grid-cols-1 gap-4 md:grid-cols-2">
+	<div class="mx-auto grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-3">
 		<a href="/tools/sling-calculator" class="group rounded-lg border border-border bg-bg-light p-6 transition-colors hover:border-primary-text">
 			<div class="mb-2 text-2xl">📐</div>
 			<h3 class="mb-1.5 text-base font-semibold text-text-dark">Sling Length Calculator</h3>
 			<p class="mb-3 text-sm leading-relaxed text-text-muted">
 				6 rigging configurations — calculates sling lengths, angles, and forces for multi-crane lifts.
+			</p>
+			<span class="text-sm font-medium text-primary-text">Open Tool →</span>
+		</a>
+		<a href="/tools/wind-calculator" class="group rounded-lg border border-border bg-bg-light p-6 transition-colors hover:border-primary-text">
+			<div class="mb-2 text-2xl">💨</div>
+			<h3 class="mb-1.5 text-base font-semibold text-text-dark">Wind Load Calculator</h3>
+			<p class="mb-3 text-sm leading-relaxed text-text-muted">
+				AS 5222:2021 wind force on suspended loads, crane members, and out-of-service storm wind.
 			</p>
 			<span class="text-sm font-medium text-primary-text">Open Tool →</span>
 		</a>

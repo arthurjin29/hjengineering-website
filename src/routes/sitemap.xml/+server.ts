@@ -13,7 +13,8 @@ export const GET: RequestHandler = async () => {
 		'/contact',
 		'/resources',
 		'/blog',
-		'/tools/sling-calculator'
+		'/tools/sling-calculator',
+		'/tools/wind-calculator'
 	];
 
 	const servicePages = services.map((s) => `/services/${s.slug}`);
