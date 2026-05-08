@@ -212,6 +212,11 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			{ x: round4(endA.x), y: round4(endA.y), z: round4(endA.z), label: 'Beam End A' },
 			{ x: round4(endB.x), y: round4(endB.y), z: round4(endB.z), label: 'Beam End B' }
 		],
+		slackLegAnalysis: {
+			applicable: false,
+			toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+			reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+		},
 		warnings: {
 			cogOutsidePolygon,
 			negativeTension,

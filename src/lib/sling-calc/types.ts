@@ -46,6 +46,35 @@ export interface Warnings {
 	bottomSlingBelowMin?: boolean;
 }
 
+export interface SlackLegScenario {
+	slackSlingId: number;
+	tensions: number[];
+	maxTension: number;
+	criticalSlingId: number;
+	infeasible: boolean;
+}
+
+export interface SlackLegApplicable {
+	applicable: true;
+	toleranceMm: number;
+	baseMaxTension: number;
+	scenarios: SlackLegScenario[];
+	worstCase: {
+		slackSlingId: number;
+		criticalSlingId: number;
+		maxTension: number;
+		percentOverBase: number;
+	};
+}
+
+export interface SlackLegNotApplicable {
+	applicable: false;
+	toleranceMm?: number;
+	reason: string;
+}
+
+export type SlackLegAnalysis = SlackLegApplicable | SlackLegNotApplicable;
+
 export interface CalcResult {
 	configType: string;
 	hook: Point3D;
@@ -58,6 +87,7 @@ export interface CalcResult {
 	tiers: Tier[];
 	beams: Beam[];
 	intermediatePoints: LabeledPoint[];
+	slackLegAnalysis: SlackLegAnalysis;
 	warnings: Warnings;
 }
 
@@ -66,6 +96,7 @@ export interface SharedInputs {
 	cog: Point3D;
 	minAngleDeg: number;
 	totalLoad: number;
+	toleranceMm?: number;
 }
 
 export type ConfigType =

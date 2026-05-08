@@ -333,6 +333,11 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			{ x: round4(masterEnds.endA.x), y: round4(masterEnds.endA.y), z: round4(masterEnds.endA.z), label: 'Main End A' },
 			{ x: round4(masterEnds.endB.x), y: round4(masterEnds.endB.y), z: round4(masterEnds.endB.z), label: 'Main End B' }
 		],
+		slackLegAnalysis: {
+			applicable: false,
+			toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+			reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+		},
 		warnings: {
 			cogOutsidePolygon,
 			negativeTension,

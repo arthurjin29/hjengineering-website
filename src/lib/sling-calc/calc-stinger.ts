@@ -202,6 +202,11 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			{ x: round4(apexA!.x), y: round4(apexA!.y), z: round4(apexA!.z), label: 'Apex A' },
 			{ x: round4(apexB!.x), y: round4(apexB!.y), z: round4(apexB!.z), label: 'Apex B' }
 		],
+		slackLegAnalysis: {
+			applicable: false,
+			toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+			reason: 'Tolerance check requires geometric perturbation analysis for paired sling configurations (not yet implemented).'
+		},
 		warnings: {
 			cogOutsidePolygon: !cogInsidePolygon,
 			negativeTension: hasNegativeTension,

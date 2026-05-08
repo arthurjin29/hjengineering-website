@@ -3,10 +3,10 @@
  * Ported from calc-direct.js — 4 slings from hook directly to 4 LPs.
  */
 
-import type { SharedInputs, ConfigInputs, CalcResult, Point3D } from './types';
+import type { SharedInputs, ConfigInputs, CalcResult, Point3D, SlackLegAnalysis } from './types';
 import {
-	degToRad, round4, pointInPolygon2D, horizontalDist,
-	buildSling, calcLoadDistribution, computeVerticalLoad
+	degToRad, round2, round4, pointInPolygon2D, horizontalDist,
+	buildSling, calcLoadDistribution, computeVerticalLoad, analyzeSlackLeg
 } from './calc-core';
 
 export function calculate(shared: SharedInputs, _config: ConfigInputs): CalcResult {
@@ -57,6 +57,30 @@ export function calculate(shared: SharedInputs, _config: ConfigInputs): CalcResu
 
 	const maxLPz = Math.max(...liftingPoints.map(lp => lp.z));
 
+	// Slack-leg tolerance check — single junction (hook), N=4
+	const baseMaxTension = Math.max(...slings.map(s => s.tension));
+	const slackRaw = analyzeSlackLeg(liftingPoints, hook, totalLoad);
+	const slackLegAnalysis: SlackLegAnalysis = slackRaw ? {
+		applicable: true,
+		toleranceMm: shared.toleranceMm != null ? shared.toleranceMm : 200,
+		baseMaxTension: round4(baseMaxTension),
+		scenarios: slackRaw.scenarios.map(s => ({
+			slackSlingId: s.slackSlingIndex + 1,
+			tensions: s.tensions,
+			maxTension: s.maxTension,
+			criticalSlingId: s.criticalSlingIndex + 1,
+			infeasible: s.infeasible
+		})),
+		worstCase: {
+			slackSlingId: slackRaw.worstCase.slackSlingIndex + 1,
+			criticalSlingId: slackRaw.worstCase.criticalSlingIndex + 1,
+			maxTension: slackRaw.worstCase.maxTension,
+			percentOverBase: baseMaxTension > 0.0001
+				? round2(((slackRaw.worstCase.maxTension - baseMaxTension) / baseMaxTension) * 100)
+				: 0
+		}
+	} : { applicable: false, reason: 'Fewer than 4 slings — slack-leg analysis would leave a single load-bearing sling.' };
+
 	return {
 		configType: 'direct',
 		hook,
@@ -72,6 +96,7 @@ export function calculate(shared: SharedInputs, _config: ConfigInputs): CalcResu
 		}],
 		beams: [],
 		intermediatePoints: [],
+		slackLegAnalysis,
 		warnings: {
 			cogOutsidePolygon: !cogInsidePolygon,
 			negativeTension: hasNegativeTension,

@@ -191,3 +191,80 @@ export function computeVerticalLoad(tension: number, from: Point3D, to: Point3D)
 	const vd = Math.abs(to.z - from.z);
 	return tension * vd / length;
 }
+
+export interface SlackLegRawScenario {
+	slackSlingIndex: number;
+	tensions: number[];
+	maxTension: number;
+	criticalSlingIndex: number;
+	infeasible: boolean;
+}
+
+export interface SlackLegRawResult {
+	scenarios: SlackLegRawScenario[];
+	worstCase: {
+		slackSlingIndex: number;
+		criticalSlingIndex: number;
+		maxTension: number;
+	};
+}
+
+export function analyzeSlackLeg(
+	points: Point3D[],
+	hook: Point3D,
+	totalLoad: number
+): SlackLegRawResult | null {
+	const N = points.length;
+	if (N < 4) return null;
+
+	const scenarios: SlackLegRawScenario[] = [];
+	let worstMaxTension = -Infinity;
+	let worstSlackIdx = 0;
+	let worstCriticalIdx = 0;
+
+	for (let slackIdx = 0; slackIdx < N; slackIdx++) {
+		const remaining = points.filter((_, j) => j !== slackIdx);
+		const partial = calcLoadDistribution(remaining, hook, totalLoad);
+
+		const fullTensions: number[] = Array(N).fill(0);
+		let k = 0;
+		for (let j = 0; j < N; j++) {
+			if (j === slackIdx) continue;
+			fullTensions[j] = partial[k++];
+		}
+
+		let maxT = -Infinity;
+		let critIdx = 0;
+		let hasNeg = false;
+		for (let j = 0; j < N; j++) {
+			if (fullTensions[j] < -0.001) hasNeg = true;
+			if (fullTensions[j] > maxT) {
+				maxT = fullTensions[j];
+				critIdx = j;
+			}
+		}
+
+		scenarios.push({
+			slackSlingIndex: slackIdx,
+			tensions: fullTensions.map(round4),
+			maxTension: round4(maxT),
+			criticalSlingIndex: critIdx,
+			infeasible: hasNeg
+		});
+
+		if (maxT > worstMaxTension) {
+			worstMaxTension = maxT;
+			worstSlackIdx = slackIdx;
+			worstCriticalIdx = critIdx;
+		}
+	}
+
+	return {
+		scenarios,
+		worstCase: {
+			slackSlingIndex: worstSlackIdx,
+			criticalSlingIndex: worstCriticalIdx,
+			maxTension: round4(worstMaxTension)
+		}
+	};
+}
