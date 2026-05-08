@@ -32,6 +32,26 @@ export function lerp3D(a: Point3D, b: Point3D, t: number): Point3D {
 	return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y), z: a.z + t * (b.z - a.z) };
 }
 
+/**
+ * Pair 4 lifting points into the two pairs that minimise total in-pair
+ * horizontal distance. Returns [[i,j], [k,l]] — index pairs for groups A and B.
+ */
+export function autoPairLPs(liftingPoints: Point3D[]): [[number, number], [number, number]] {
+	const pairings: [[number, number], [number, number]][] = [
+		[[0, 1], [2, 3]],
+		[[0, 2], [1, 3]],
+		[[0, 3], [1, 2]]
+	];
+	let bestPairing = pairings[0];
+	let bestDist = Infinity;
+	for (const p of pairings) {
+		const d = horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
+		        + horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
+		if (d < bestDist) { bestDist = d; bestPairing = p; }
+	}
+	return bestPairing;
+}
+
 export function pointInPolygon2D(point: Point3D, polygon: Point3D[]): boolean {
 	let inside = false;
 	for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -183,6 +203,46 @@ export function computeBeamEndZ(groupLPs: Point3D[], beamEndXY: Point3D, minAngl
 		if (requiredZ > maxZ) maxZ = requiredZ;
 	}
 	return maxZ;
+}
+
+/**
+ * Place beam ends on direct sling paths from each LP toward a target point.
+ * Path: P(t) = LP + t * (target - LP); pair horizontal spread shrinks with t.
+ * - If beam length >= LP horizontal spread, beam handles the short axis fully:
+ *   ends sit on the LP's vertical X-Z path, sharing the LP's Y, with
+ *   minSlingLen along the path.
+ * - Otherwise, ends sit on the direct sling paths at the t where horizontal
+ *   spread equals beamLength, clamped by minSlingLen and t<=0.95.
+ */
+export function computeBeamEndPair(
+	lp0: Point3D, lp1: Point3D, target: Point3D,
+	beamLength: number, minSlingLen: number
+): { end0: Point3D; end1: Point3D } {
+	const spreadAtZero = horizontalDist(lp0, lp1);
+
+	if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
+		const placeOnXZpath = (lp: Point3D): Point3D => {
+			const dx = target.x - lp.x;
+			const dz = target.z - lp.z;
+			const xzDist = Math.sqrt(dx * dx + dz * dz);
+			if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
+			const frac = Math.min(minSlingLen / xzDist, 0.95);
+			return { x: lp.x + frac * dx, y: lp.y, z: lp.z + frac * dz };
+		};
+		return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1) };
+	}
+
+	let t = 1 - beamLength / spreadAtZero;
+	const fullLen0 = dist3D(lp0, target);
+	const fullLen1 = dist3D(lp1, target);
+	const minT = Math.max(
+		fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
+		fullLen1 > 0 ? minSlingLen / fullLen1 : 0
+	);
+	t = Math.max(t, minT);
+	t = Math.min(t, 0.95);
+
+	return { end0: lerp3D(lp0, target, t), end1: lerp3D(lp1, target, t) };
 }
 
 export function computeVerticalLoad(tension: number, from: Point3D, to: Point3D): number {

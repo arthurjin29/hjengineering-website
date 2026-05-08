@@ -15,57 +15,11 @@
 import type { SharedInputs, ConfigInputs, CalcResult, Point3D, Sling } from './types';
 import {
 	degToRad, round4, horizontalDist, dist3D, midpoint, pointInPolygon2D,
-	buildSling, calcTwoSlingTension, computeVerticalLoad
+	buildSling, calcTwoSlingTension, computeVerticalLoad,
+	autoPairLPs, computeBeamEndPair
 } from './calc-core';
 
 const TOP_ANGLE_WARN_DEG = 30;
-
-function computeBeamEndPair(
-	lp0: Point3D, lp1: Point3D, target: Point3D,
-	beamLength: number, minSlingLen: number
-): { end0: Point3D; end1: Point3D } {
-	const spreadAtZero = horizontalDist(lp0, lp1);
-
-	if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
-		function placeOnXZpath(lp: Point3D): Point3D {
-			const dx = target.x - lp.x;
-			const dz = target.z - lp.z;
-			const xzDist = Math.sqrt(dx * dx + dz * dz);
-			if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
-			const frac = Math.min(minSlingLen / xzDist, 0.95);
-			return {
-				x: lp.x + frac * dx,
-				y: lp.y,
-				z: lp.z + frac * dz
-			};
-		}
-		return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1) };
-	}
-
-	let t = 1 - beamLength / spreadAtZero;
-
-	const fullLen0 = dist3D(lp0, target);
-	const fullLen1 = dist3D(lp1, target);
-	const minT = Math.max(
-		fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
-		fullLen1 > 0 ? minSlingLen / fullLen1 : 0
-	);
-	t = Math.max(t, minT);
-	t = Math.min(t, 0.95);
-
-	return {
-		end0: {
-			x: lp0.x + t * (target.x - lp0.x),
-			y: lp0.y + t * (target.y - lp0.y),
-			z: lp0.z + t * (target.z - lp0.z)
-		},
-		end1: {
-			x: lp1.x + t * (target.x - lp1.x),
-			y: lp1.y + t * (target.y - lp1.y),
-			z: lp1.z + t * (target.z - lp1.z)
-		}
-	};
-}
 
 export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResult {
 	const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
@@ -79,16 +33,9 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 		groupAIdxs = config.pairing.groupA.map(v => v - 1);
 		groupBIdxs = config.pairing.groupB.map(v => v - 1);
 	} else {
-		const pairingsOpt: [number, number][][] = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
-		let bestPairing = pairingsOpt[0];
-		let bestDist = Infinity;
-		for (const p of pairingsOpt) {
-			const d = horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
-			        + horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
-			if (d < bestDist) { bestDist = d; bestPairing = p; }
-		}
-		groupAIdxs = bestPairing[0];
-		groupBIdxs = bestPairing[1];
+		const [a, b] = autoPairLPs(liftingPoints);
+		groupAIdxs = a;
+		groupBIdxs = b;
 	}
 	const groupALPs = groupAIdxs.map(i => liftingPoints[i]);
 	const groupBLPs = groupBIdxs.map(i => liftingPoints[i]);

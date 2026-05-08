@@ -12,7 +12,8 @@
 import type { SharedInputs, ConfigInputs, CalcResult, Point3D } from './types';
 import {
 	degToRad, round4, horizontalDist, dist3D, pointInPolygon2D,
-	buildSling, calcLoadDistribution, computeVerticalLoad
+	buildSling, calcLoadDistribution, computeVerticalLoad,
+	autoPairLPs, computeBeamEndPair
 } from './calc-core';
 
 const TOP_ANGLE_WARN_DEG = 30;
@@ -24,16 +25,7 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	const minAngleRad = degToRad(minAngleDeg);
 
 	// 1. Auto-pair LPs by proximity
-	const pairings: [number, number][][] = [[[0,1],[2,3]], [[0,2],[1,3]], [[0,3],[1,2]]];
-	let bestPairing = pairings[0];
-	let bestDist = Infinity;
-	for (const p of pairings) {
-		const d = horizontalDist(liftingPoints[p[0][0]], liftingPoints[p[0][1]])
-		        + horizontalDist(liftingPoints[p[1][0]], liftingPoints[p[1][1]]);
-		if (d < bestDist) { bestDist = d; bestPairing = p; }
-	}
-	const groupAIdxs = bestPairing[0];
-	const groupBIdxs = bestPairing[1];
+	const [groupAIdxs, groupBIdxs] = autoPairLPs(liftingPoints);
 	const groupALPs = groupAIdxs.map(i => liftingPoints[i]);
 	const groupBLPs = groupBIdxs.map(i => liftingPoints[i]);
 	const groupALabels = groupAIdxs.map(i => 'LP' + (i + 1));
@@ -45,54 +37,9 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
 	const hook: Point3D = { x: cog.x, y: cog.y, z: Math.max(...requiredHookZs) };
 
-	// 3. Place beam ends on direct sling paths
-	function computeBeamEndPair(lp0: Point3D, lp1: Point3D, beamLength: number) {
-		const spreadAtZero = horizontalDist(lp0, lp1);
-
-		if (spreadAtZero < 0.0001 || beamLength >= spreadAtZero) {
-			function placeOnXZpath(lp: Point3D): Point3D {
-				const dx = hook.x - lp.x;
-				const dz = hook.z - lp.z;
-				const xzDist = Math.sqrt(dx * dx + dz * dz);
-				if (xzDist < 0.0001) return { x: lp.x, y: lp.y, z: lp.z + minSlingLen };
-				const frac = Math.min(minSlingLen / xzDist, 0.95);
-				return {
-					x: lp.x + frac * dx,
-					y: lp.y,
-					z: lp.z + frac * dz
-				};
-			}
-			return { end0: placeOnXZpath(lp0), end1: placeOnXZpath(lp1), t: 0 };
-		}
-
-		let t = 1 - beamLength / spreadAtZero;
-
-		const fullLen0 = dist3D(lp0, hook);
-		const fullLen1 = dist3D(lp1, hook);
-		const minT = Math.max(
-			fullLen0 > 0 ? minSlingLen / fullLen0 : 0,
-			fullLen1 > 0 ? minSlingLen / fullLen1 : 0
-		);
-		t = Math.max(t, minT);
-		t = Math.min(t, 0.95);
-
-		return {
-			end0: {
-				x: lp0.x + t * (hook.x - lp0.x),
-				y: lp0.y + t * (hook.y - lp0.y),
-				z: lp0.z + t * (hook.z - lp0.z)
-			},
-			end1: {
-				x: lp1.x + t * (hook.x - lp1.x),
-				y: lp1.y + t * (hook.y - lp1.y),
-				z: lp1.z + t * (hook.z - lp1.z)
-			},
-			t
-		};
-	}
-
-	const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], beamLengthA!);
-	const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], beamLengthB!);
+	// 3. Place beam ends on direct sling paths (shared core helper, target = hook)
+	const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], hook, beamLengthA!, minSlingLen);
+	const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], hook, beamLengthB!, minSlingLen);
 
 	const beamA1 = pairA.end0;
 	const beamA2 = pairA.end1;
