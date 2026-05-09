@@ -179,6 +179,30 @@ describe('multi-frame shielding (§5.5 eq 5)', () => {
 		expect(() => memberForce({ ...base, frames: { count: 3, eta: -0.1 } })).toThrow();
 		expect(() => memberForce({ ...base, frames: { count: 3, eta: 1.1 } })).toThrow();
 	});
+
+	it('combined inclined + shielding: shielding stacks on reduced perpendicular force', () => {
+		// AS 5222 §5.5 + §5.6 combined. F_single = 750, α = 30° → F_base = 375.
+		// 4 frames η=0.5 cumulative on F_base=375:
+		//   F_1=375, F_2=375*1.5=562.5, F_3=375*1.75=656.25, F_4=375*1.875=703.125
+		// shielding reduction = 1 - 703.125/(4*375) = 53.125%
+		const r = memberForce({
+			...base, inclinationDeg: 30, frames: { count: 4, eta: 0.5 }
+		});
+		expect(r.F_single).toBeCloseTo(750, APPROX);
+		expect(r.F_inclined).toBeCloseTo(375, APPROX);
+		const expected = [375, 562.5, 656.25, 703.125];
+		expect(r.frameForces!.length).toBe(4);
+		r.frameForces!.forEach((f, i) => expect(f).toBeCloseTo(expected[i], 4));
+		expect(r.F_total).toBeCloseTo(703.125, APPROX);
+		expect(r.shieldingReductionPct).toBeCloseTo(53.125, APPROX);
+	});
+
+	it('combined inclined + shielding: 90° gives same as un-inclined', () => {
+		// sin(90°) = 1, so F_base = F_single, results match the un-inclined case.
+		const inclined = memberForce({ ...base, inclinationDeg: 90, frames: { count: 4, eta: 0.5 } });
+		const plain = memberForce({ ...base, frames: { count: 4, eta: 0.5 } });
+		expect(inclined.F_total).toBeCloseTo(plain.F_total!, APPROX);
+	});
 });
 
 describe('out-of-service speed profile (§6.3 eq 11)', () => {

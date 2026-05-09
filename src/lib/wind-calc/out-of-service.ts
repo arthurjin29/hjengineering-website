@@ -27,9 +27,16 @@ const Z_REF_M = 10; // reference height baked into eq 11
 const HEIGHT_EXPONENT = 0.14; // simplified power exponent (φ_R=1.1, K=0.0055)
 const GUST_OFFSET = 0.4; // 3-s gust enhancement on top of 10-min mean
 
+function requireNonNeg(label: string, v: unknown): number {
+	if (typeof v !== 'number' || !isFinite(v) || v < 0) {
+		throw new Error(`Invalid ${label}: ${v}`);
+	}
+	return v;
+}
+
 export function speedAtHeight(v_ref: number, R: RecurrenceInterval, z: number): number {
-	if (!isFinite(v_ref) || v_ref < 0) throw new Error(`Invalid v_ref: ${v_ref}`);
-	if (!isFinite(z) || z < 0) throw new Error(`Invalid height z: ${z}`);
+	requireNonNeg('v_ref', v_ref);
+	requireNonNeg('z', z);
 	const f_rec = F_REC_LOOKUP[R];
 	if (f_rec === undefined) throw new Error(`Invalid recurrence interval: ${R}`);
 	return f_rec * (Math.pow(z / Z_REF_M, HEIGHT_EXPONENT) + GUST_OFFSET) * v_ref;

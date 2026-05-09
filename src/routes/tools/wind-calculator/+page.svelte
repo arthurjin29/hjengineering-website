@@ -8,6 +8,7 @@
 		MODE_LABELS,
 		type CalcMode,
 		type InServiceCategory,
+		type PressureResult,
 		type RecurrenceInterval,
 		type SuspendedLoadResult,
 		type MemberResult,
@@ -20,10 +21,6 @@
 	let speedSource: 'preset' | 'manual' = $state('preset');
 	let presetCategory: InServiceCategory = $state('normal');
 	let manualSpeed = $state(20);
-
-	const pressure = $derived(
-		speedSource === 'preset' ? presetPressure(presetCategory) : manualPressure(manualSpeed)
-	);
 
 	// ── Suspended load inputs ────────────────────────────────────────────────
 	let cH = $state(1.2);
@@ -58,25 +55,34 @@
 		}
 	}
 
-	const suspendedOutcome = $derived.by((): Outcome<SuspendedLoadResult> =>
-		mode === 'suspended-load'
-			? compute(() => suspendedLoad({ pressure, c_H: cH, A_H: aH }))
-			: { result: null, error: '' }
+	// Pressure derivation is wrapped so a transient invalid manual speed
+	// (e.g. user clearing the input mid-edit) cannot crash render.
+	const pressureOutcome = $derived.by((): Outcome<PressureResult> =>
+		compute(() =>
+			speedSource === 'preset' ? presetPressure(presetCategory) : manualPressure(manualSpeed)
+		)
 	);
+	const pressure = $derived(pressureOutcome.result);
 
-	const memberOutcome = $derived.by((): Outcome<MemberResult> =>
-		mode === 'member'
-			? compute(() =>
-					memberForce({
-						pressure,
-						A,
-						C_f: Cf,
-						...(useFrames ? { frames: { count: frameCount, eta } } : {}),
-						...(useInclination ? { inclinationDeg } : {})
-					})
-				)
-			: { result: null, error: '' }
-	);
+	const suspendedOutcome = $derived.by((): Outcome<SuspendedLoadResult> => {
+		if (mode !== 'suspended-load') return { result: null, error: '' };
+		if (!pressure) return { result: null, error: pressureOutcome.error };
+		return compute(() => suspendedLoad({ pressure, c_H: cH, A_H: aH }));
+	});
+
+	const memberOutcome = $derived.by((): Outcome<MemberResult> => {
+		if (mode !== 'member') return { result: null, error: '' };
+		if (!pressure) return { result: null, error: pressureOutcome.error };
+		return compute(() =>
+			memberForce({
+				pressure,
+				A,
+				C_f: Cf,
+				...(useFrames ? { frames: { count: frameCount, eta } } : {}),
+				...(useInclination ? { inclinationDeg } : {})
+			})
+		);
+	});
 
 	const oosOutcome = $derived.by((): Outcome<OutOfServiceResult> =>
 		mode === 'out-of-service'
@@ -97,13 +103,13 @@
 	const oosResult = $derived(oosOutcome.result);
 	const error = $derived(suspendedOutcome.error || memberOutcome.error || oosOutcome.error);
 
-	function fmt(n: number, dp = 2): string {
-		if (!isFinite(n)) return '—';
+	function fmt(n: number | null | undefined, dp = 2): string {
+		if (typeof n !== 'number' || !isFinite(n)) return '—';
 		return n.toLocaleString('en-AU', { maximumFractionDigits: dp, minimumFractionDigits: dp });
 	}
 
-	function fmtForce(n: number): string {
-		if (!isFinite(n)) return '—';
+	function fmtForce(n: number | null | undefined): string {
+		if (typeof n !== 'number' || !isFinite(n)) return '—';
 		return n >= 1000 ? `${fmt(n / 1000)} kN` : `${fmt(n, 0)} N`;
 	}
 
@@ -199,7 +205,7 @@
 									<input id="manual-speed" type="number" step="0.1" min="0" bind:value={manualSpeed}
 										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
 								</div>
-								<div class="text-xs text-text-muted">→ p = {fmt(pressure.p)} N/m²</div>
+								<div class="text-xs text-text-muted">→ p = {pressure ? fmt(pressure.p) : '—'} N/m²</div>
 							</div>
 						{/if}
 					</div>
@@ -340,32 +346,32 @@
 
 				{#if mode === 'suspended-load' && suspendedResult}
 					<div class="space-y-3 rounded-md border border-border bg-bg-subtle p-4">
-						{@render row('Wind speed v_s', `${fmt(suspendedResult.pressure.v_s)} m/s`, false)}
-						{@render row('Wind pressure p', `${fmt(suspendedResult.pressure.p)} N/m²`, false)}
-						{@render row('Shape coefficient c_H', fmt(suspendedResult.c_H), false)}
-						{@render row('Wind area A_H', `${fmt(suspendedResult.A_H)} m²`, false)}
+						{@render resultRow('Wind speed v_s', `${fmt(suspendedResult.pressure.v_s)} m/s`, false)}
+						{@render resultRow('Wind pressure p', `${fmt(suspendedResult.pressure.p)} N/m²`, false)}
+						{@render resultRow('Shape coefficient c_H', fmt(suspendedResult.c_H), false)}
+						{@render resultRow('Wind area A_H', `${fmt(suspendedResult.A_H)} m²`, false)}
 						<hr class="border-border" />
-						{@render row('Wind force F_w', fmtForce(suspendedResult.F_w), true)}
+						{@render resultRow('Wind force F_w', fmtForce(suspendedResult.F_w), true)}
 						<p class="text-xs italic text-text-muted">F_w = c_H × A_H × p (AS 5222 eq 3)</p>
 					</div>
 				{/if}
 
 				{#if mode === 'member' && memberResult}
 					<div class="space-y-3 rounded-md border border-border bg-bg-subtle p-4">
-						{@render row('Wind pressure p', `${fmt(memberResult.pressure.p)} N/m²`, false)}
-						{@render row('Single-member force F', fmtForce(memberResult.F_single), !useFrames && !useInclination)}
+						{@render resultRow('Wind pressure p', `${fmt(memberResult.pressure.p)} N/m²`, false)}
+						{@render resultRow('Single-member force F', fmtForce(memberResult.F_single), !useFrames && !useInclination)}
 						<p class="text-xs italic text-text-muted">F = A × p × C_f (AS 5222 eq 4)</p>
 
 						{#if memberResult.F_inclined !== undefined}
 							<hr class="border-border" />
-							{@render row('Inclined F · sin(α)', fmtForce(memberResult.F_inclined), !useFrames)}
+							{@render resultRow('Inclined F · sin(α)', fmtForce(memberResult.F_inclined), !useFrames)}
 							<p class="text-xs italic text-text-muted">α = {inclinationDeg}° (AS 5222 eq 7)</p>
 						{/if}
 
 						{#if memberResult.frameForces && memberResult.F_total !== undefined}
 							<hr class="border-border" />
-							{@render row('Total cumulative force ΣF_n', fmtForce(memberResult.F_total), true)}
-							{@render row('Shielding reduction', `${fmt(memberResult.shieldingReductionPct ?? 0, 1)}%`, false)}
+							{@render resultRow('Total cumulative force ΣF_n', fmtForce(memberResult.F_total), true)}
+							{@render resultRow('Shielding reduction', `${fmt(memberResult.shieldingReductionPct ?? 0, 1)}%`, false)}
 							<details class="text-xs text-text-muted">
 								<summary class="cursor-pointer">Per-frame breakdown ({memberResult.frameForces.length} frames)</summary>
 								<table class="mt-2 w-full text-xs">
@@ -389,21 +395,21 @@
 
 				{#if mode === 'out-of-service' && oosResult}
 					<div class="space-y-3 rounded-md border border-border bg-bg-subtle p-4">
-						{@render row(`f_rec (R=${oosResult.R})`, fmt(oosResult.f_rec, 3), false)}
-						{@render row(`v(z=${oosResult.z} m)`, `${fmt(oosResult.v_z)} m/s`, false)}
-						{@render row('q(z) dynamic pressure', `${fmt(oosResult.p_z)} N/m²`, !useOosTheta && oosResult.F === undefined)}
+						{@render resultRow(`f_rec (R=${oosResult.R})`, fmt(oosResult.f_rec, 3), false)}
+						{@render resultRow(`v(z=${oosResult.z} m)`, `${fmt(oosResult.v_z)} m/s`, false)}
+						{@render resultRow('q(z) dynamic pressure', `${fmt(oosResult.p_z)} N/m²`, !useOosTheta && oosResult.F === undefined)}
 						<p class="text-xs italic text-text-muted">v(z) = f_rec × [(z/10)^0.14 + 0.4] × v_ref (AS 5222 eq 11)</p>
 
 						{#if oosResult.v_z_inclined !== undefined && oosResult.p_z_inclined !== undefined}
 							<hr class="border-border" />
-							{@render row('v(z*) = v(z) × sin(θ)', `${fmt(oosResult.v_z_inclined)} m/s`, false)}
-							{@render row('q(z*) inclined', `${fmt(oosResult.p_z_inclined)} N/m²`, oosResult.F === undefined)}
+							{@render resultRow('v(z*) = v(z) × sin(θ)', `${fmt(oosResult.v_z_inclined)} m/s`, false)}
+							{@render resultRow('q(z*) inclined', `${fmt(oosResult.p_z_inclined)} N/m²`, oosResult.F === undefined)}
 							<p class="text-xs italic text-text-muted">θ = {oosResult.thetaDeg}° (AS 5222 eq 12)</p>
 						{/if}
 
 						{#if oosResult.F !== undefined}
 							<hr class="border-border" />
-							{@render row('Force on member F', fmtForce(oosResult.F), true)}
+							{@render resultRow('Force on member F', fmtForce(oosResult.F), true)}
 							<p class="text-xs italic text-text-muted">F = q × C_f × A (AS 5222 eq 8)</p>
 						{/if}
 
@@ -444,7 +450,7 @@
 	</div>
 </section>
 
-{#snippet row(label: string, value: string, highlight: boolean)}
+{#snippet resultRow(label: string, value: string, highlight: boolean)}
 	<div class="flex items-baseline justify-between gap-4">
 		<span class="text-xs text-text-muted">{label}</span>
 		<span class="font-mono text-sm {highlight ? 'font-bold text-primary-text' : 'text-text-dark'}">{value}</span>

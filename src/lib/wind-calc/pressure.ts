@@ -12,7 +12,9 @@ import { IN_SERVICE_PRESETS } from './types';
 const AIR_DENSITY_FACTOR = 0.625; // 0.5 * 1.225
 
 export function pressureFromSpeed(v_s: number): number {
-	if (!isFinite(v_s) || v_s < 0) throw new Error(`Invalid wind speed: ${v_s}`);
+	if (typeof v_s !== 'number' || !isFinite(v_s) || v_s < 0) {
+		throw new Error(`Invalid wind speed: ${v_s}`);
+	}
 	return AIR_DENSITY_FACTOR * v_s * v_s;
 }
 
