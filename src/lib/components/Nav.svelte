@@ -18,7 +18,7 @@
 
 <svelte:window onclick={closeTools} />
 
-<nav class="fixed top-0 z-50 w-full border-b border-border bg-bg-light">
+<nav class="fixed top-0 z-50 w-full border-b border-border bg-bg-light print:hidden">
 	<div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
 		<!-- Wordmark -->
 		<a href="/" class="text-lg font-bold text-primary-text">HJ Engineering</a>

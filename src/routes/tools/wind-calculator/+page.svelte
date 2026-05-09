@@ -136,7 +136,7 @@
 	})}</script>`}
 </svelte:head>
 
-<section class="bg-gradient-to-b from-bg-dark to-bg-card-dark px-8 py-12 text-center text-text-light">
+<section class="bg-gradient-to-b from-bg-dark to-bg-card-dark px-8 py-12 text-center text-text-light print:bg-none print:bg-white print:py-4 print:text-black">
 	<p class="mb-2 text-xs uppercase tracking-[2px] text-primary">Engineering Tools</p>
 	<h1 class="mx-auto mb-3 max-w-xl text-3xl font-bold">Crane Wind Load Calculator</h1>
 	<p class="mx-auto max-w-2xl text-sm leading-relaxed text-text-faint">
@@ -148,7 +148,7 @@
 <section class="bg-bg-light px-8 py-8">
 	<div class="mx-auto max-w-5xl">
 		<!-- Mode tabs -->
-		<div class="mb-6 flex flex-wrap gap-1 rounded-lg border border-border bg-bg-subtle p-1">
+		<div class="mb-6 flex flex-wrap gap-1 rounded-lg border border-border bg-bg-subtle p-1 print:hidden">
 			{#each modes as [key, label]}
 				<button
 					type="button"
@@ -160,6 +160,11 @@
 					{label}
 				</button>
 			{/each}
+		</div>
+
+		<!-- Print-only mode header -->
+		<div class="mb-4 hidden border-b border-border pb-2 text-sm print:block">
+			<strong>Mode:</strong> {MODE_LABELS[mode]} &nbsp;·&nbsp; <strong>Generated:</strong> {new Date().toLocaleString('en-AU')}
 		</div>
 
 		{#if error}
@@ -222,7 +227,7 @@
 						<div>
 							<label for="ch" class="mb-1 block text-xs font-medium text-text-muted">
 								Shape coefficient c_H
-								<span class="ml-1 italic text-text-faint">(see AS 5222 §5.4 Table 2)</span>
+								<a href="#cf-guide" class="ml-1 text-primary-text underline-offset-2 hover:underline" title="Typical C_f ranges">[?]</a>
 							</label>
 							<input id="ch" type="number" step="0.05" min="0" bind:value={cH}
 								class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
@@ -241,7 +246,7 @@
 						<div>
 							<label for="m-Cf" class="mb-1 block text-xs font-medium text-text-muted">
 								Shape coefficient C_f
-								<span class="ml-1 italic text-text-faint">(see AS 5222 §5.4 Table 2)</span>
+								<a href="#cf-guide" class="ml-1 text-primary-text underline-offset-2 hover:underline" title="Typical C_f ranges">[?]</a>
 							</label>
 							<input id="m-Cf" type="number" step="0.05" min="0" bind:value={Cf}
 								class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
@@ -260,7 +265,8 @@
 								</div>
 								<div>
 									<label for="m-eta" class="mb-1 block text-xs font-medium text-text-muted">
-										η <span class="italic text-text-faint">(Table 4)</span>
+										η
+										<a href="#eta-guide" class="ml-1 text-primary-text underline-offset-2 hover:underline" title="Typical η ranges">[?]</a>
 									</label>
 									<input id="m-eta" type="number" step="0.05" min="0" max="1" bind:value={eta}
 										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
@@ -288,7 +294,7 @@
 						<div>
 							<label for="oos-vref" class="mb-1 block text-xs font-medium text-text-muted">
 								v_ref (m/s) — 50-yr 10-min mean storm wind at 10 m, flat open country
-								<span class="ml-1 italic text-text-faint">(AU: see AS 1418.1)</span>
+								<a href="#vref-guide" class="ml-1 text-primary-text underline-offset-2 hover:underline" title="v_ref guidance">[?]</a>
 							</label>
 							<input id="oos-vref" type="number" step="0.5" min="0" bind:value={vRef}
 								class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
@@ -342,7 +348,17 @@
 
 			<!-- Results -->
 			<div>
-				<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-text-dark">Results</h2>
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="text-sm font-semibold uppercase tracking-wide text-text-dark">Results</h2>
+					<button
+						type="button"
+						onclick={() => window.print()}
+						class="rounded-md border border-border bg-bg-light px-3 py-1 text-xs font-medium text-text-dark transition-colors hover:border-primary-text hover:text-primary-text print:hidden"
+						title="Print or save as PDF"
+					>
+						🖨 Print summary
+					</button>
+				</div>
 
 				{#if mode === 'suspended-load' && suspendedResult}
 					<div class="space-y-3 rounded-md border border-border bg-bg-subtle p-4">
@@ -438,6 +454,125 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- Coefficient guide -->
+		<details id="coeff-guide" class="mt-8 rounded-md border border-border bg-bg-subtle p-4 text-sm">
+			<summary class="cursor-pointer font-semibold text-text-dark">Coefficient guide — typical ranges</summary>
+			<div class="mt-4 space-y-5 leading-relaxed text-text-body">
+				<p class="text-xs text-text-muted">
+					Editorial ranges drawn from common wind-engineering literature (Eurocode EN 1991‑1‑4,
+					Cook's <em>Designer's Guide to Wind Loading</em>, Hoerner's <em>Fluid‑Dynamic Drag</em>,
+					ESDU data sheets, ISO 4354). Values are first-pass guidance only — for authoritative
+					design figures consult AS 5222 §5.4 Table 2 (shape coefficients) and Table 4
+					(shielding factors).
+				</p>
+
+				<div id="cf-guide">
+					<h3 class="mb-2 text-sm font-semibold text-text-dark">Shape coefficient C_f</h3>
+					<p class="mb-3 text-xs text-text-muted">
+						C_f is the drag coefficient referred to the projected solid area. It depends on
+						member shape, aspect ratio, surface roughness, and (for round sections) the
+						Reynolds number Re = v·d/ν.
+					</p>
+					<table class="w-full text-xs">
+						<thead>
+							<tr class="border-b border-border text-text-muted">
+								<th class="py-1.5 pr-3 text-left font-medium">Member type</th>
+								<th class="py-1.5 pr-3 text-left font-medium">Typical C_f</th>
+								<th class="py-1.5 text-left font-medium">Notes</th>
+							</tr>
+						</thead>
+						<tbody class="align-top">
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Flat plate / sheet panel</td>
+								<td class="py-1.5 pr-3 font-mono">1.1 – 2.0</td>
+								<td class="py-1.5 text-text-muted">Square panel ≈ 1.1; rises with aspect ratio l/b — long, slender plates approach 2.0.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Suspended load — flat / billboard</td>
+								<td class="py-1.5 pr-3 font-mono">1.2 – 2.0</td>
+								<td class="py-1.5 text-text-muted">Treat as flat plate at the worst-case orientation. Tarpaulins, signage, façade panels.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Suspended load — compact / rounded</td>
+								<td class="py-1.5 pr-3 font-mono">0.7 – 1.1</td>
+								<td class="py-1.5 text-text-muted">Steel coils, tanks, generators, motors — closed bodies with rounded faces.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Box / I / channel section</td>
+								<td class="py-1.5 pr-3 font-mono">1.4 – 2.0</td>
+								<td class="py-1.5 text-text-muted">Sharp-edged structural sections. Higher with low slenderness; lower for long booms.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Circular section — subcritical</td>
+								<td class="py-1.5 pr-3 font-mono">≈ 1.2</td>
+								<td class="py-1.5 text-text-muted">Re &lt; ~2×10⁵ (small diameter or low wind). Rough surface keeps you here longer.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Circular section — supercritical</td>
+								<td class="py-1.5 pr-3 font-mono">0.5 – 0.8</td>
+								<td class="py-1.5 text-text-muted">Re &gt; ~4×10⁵ — drag crisis. Smooth large-diameter pipes, mast columns at storm speeds.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Lattice frame — sharp-edge members</td>
+								<td class="py-1.5 pr-3 font-mono">1.4 – 1.8</td>
+								<td class="py-1.5 text-text-muted">Referred to solid area. Solidity ratio φ = solid / enclosed; lower φ → upper end of range.</td>
+							</tr>
+							<tr class="border-b border-border/50">
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Lattice frame — round-tube (supercritical)</td>
+								<td class="py-1.5 pr-3 font-mono">0.8 – 1.2</td>
+								<td class="py-1.5 text-text-muted">Tubular booms in storm wind. Drops markedly once individual members go supercritical.</td>
+							</tr>
+							<tr>
+								<td class="py-1.5 pr-3 font-medium text-text-dark">Machinery house / cab (enclosed)</td>
+								<td class="py-1.5 pr-3 font-mono">1.1 – 1.4</td>
+								<td class="py-1.5 text-text-muted">Treat as small bluff building. Apply to projected face area.</td>
+							</tr>
+						</tbody>
+					</table>
+					<p class="mt-3 text-xs text-text-muted">
+						Reynolds number rule of thumb: Re ≈ 70 000 × v(m/s) × d(m) for air at 20 °C.
+						A 0.3 m diameter circular boom in 30 m/s wind gives Re ≈ 6.3×10⁵ — supercritical.
+					</p>
+				</div>
+
+				<div id="eta-guide">
+					<h3 class="mb-2 text-sm font-semibold text-text-dark">Shielding factor η</h3>
+					<p class="mb-2 text-xs text-text-muted">
+						η is the fraction of the upstream wind that reaches the next downstream frame
+						in a series of identical, equally spaced parallel frames (e.g. lattice booms,
+						scaffold towers, shutter slats). η = 0 means full shielding; η = 1 means no
+						shielding.
+					</p>
+					<p class="mb-2 text-xs text-text-muted">
+						Two parameters drive it: <strong>solidity ratio</strong> φ (the frame's solid
+						silhouette area / enclosed area) and <strong>spacing ratio</strong> a/b (gap
+						between facing sides / breadth of member across the wind).
+					</p>
+					<ul class="ml-4 list-disc space-y-1 text-xs text-text-muted">
+						<li>High solidity (φ &gt; 0.5) + close spacing (a/b &lt; 1) → strong shielding, η typically 0.1–0.3</li>
+						<li>Mid solidity (φ ≈ 0.2–0.4) + moderate spacing (a/b 1–4) → η typically 0.4–0.7</li>
+						<li>Low solidity (φ &lt; 0.1) or wide spacing (a/b &gt; 4) → little shielding, η &gt; 0.8</li>
+					</ul>
+					<p class="mt-2 text-xs text-text-muted">
+						AS 5222 §5.5 caps the shielding accumulation at 8 frames — every additional
+						downstream frame past the 8th contributes the same incremental load as the 8th
+						(implemented in this calculator).
+					</p>
+				</div>
+
+				<div id="vref-guide">
+					<h3 class="mb-2 text-sm font-semibold text-text-dark">v_ref for out-of-service wind (Australia)</h3>
+					<p class="text-xs text-text-muted">
+						v_ref is the 50-year 10-minute mean storm wind speed at 10 m above flat open
+						country. AS 1418.1 maps Australia into wind regions and tabulates v_ref by
+						region — typical values fall in roughly 30–55 m/s, increasing toward the
+						cyclone-prone north. Cross-reference your project's wind-region classification
+						(usually from the structural engineer or AS/NZS 1170.2) before entering a value.
+					</p>
+				</div>
+			</div>
+		</details>
 
 		<!-- Disclaimer -->
 		<div class="mt-8 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-xs leading-relaxed text-yellow-900">
