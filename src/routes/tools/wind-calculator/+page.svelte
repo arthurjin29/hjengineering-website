@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SeoMeta from '$lib/components/SeoMeta.svelte';
-	import { manualPressure, presetPressure } from '$lib/wind-calc/pressure';
+	import { manualPressure } from '$lib/wind-calc/pressure';
 	import { suspendedLoad, memberForce } from '$lib/wind-calc/in-service';
 	import { outOfService } from '$lib/wind-calc/out-of-service';
 	import {
@@ -9,10 +9,8 @@
 		type FlatPlateResult, type CylinderResult, type RectBoxResult, type LatticeResult
 	} from '$lib/wind-calc/shape-coeff';
 	import {
-		IN_SERVICE_PRESETS,
 		MODE_LABELS,
 		type CalcMode,
-		type InServiceCategory,
 		type PressureResult,
 		type RecurrenceInterval,
 		type SuspendedLoadResult,
@@ -22,10 +20,8 @@
 
 	let mode: CalcMode = $state('suspended-load');
 
-	// ── Shared in-service speed source ───────────────────────────────────────
-	let speedSource: 'preset' | 'manual' = $state('preset');
-	let presetCategory: InServiceCategory = $state('normal');
-	let manualSpeed = $state(20);
+	// ── Wind speed (user-entered) ────────────────────────────────────────────
+	let manualSpeed = $state(10);
 
 	// ── Suspended load inputs ────────────────────────────────────────────────
 	let cH = $state(1.2);
@@ -74,12 +70,10 @@
 		}
 	}
 
-	// Pressure derivation is wrapped so a transient invalid manual speed
+	// Pressure derivation is wrapped so a transient invalid wind speed
 	// (e.g. user clearing the input mid-edit) cannot crash render.
 	const pressureOutcome = $derived.by((): Outcome<PressureResult> =>
-		compute(() =>
-			speedSource === 'preset' ? presetPressure(presetCategory) : manualPressure(manualSpeed)
-		)
+		compute(() => manualPressure(manualSpeed))
 	);
 	const pressure = $derived(pressureOutcome.result);
 
@@ -248,40 +242,24 @@
 						large sail loads.
 					</p>
 					<div class="mb-6 space-y-3">
-						<div class="flex gap-3">
-							<label class="flex items-center gap-2 text-sm">
-								<input type="radio" bind:group={speedSource} value="preset" />
-								<span>Category preset</span>
-							</label>
-							<label class="flex items-center gap-2 text-sm">
-								<input type="radio" bind:group={speedSource} value="manual" />
-								<span>Manual v_s</span>
-							</label>
+						<div class="flex items-end gap-3">
+							<div class="flex-1">
+								<label for="manual-speed" class="mb-1 block text-xs font-medium text-text-muted">Wind speed v_s (m/s)</label>
+								<input id="manual-speed" type="number" step="0.1" min="0" bind:value={manualSpeed}
+									class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+							</div>
+							<div class="text-xs text-text-muted">→ p = {pressure ? fmt(pressure.p) : '—'} N/m²</div>
 						</div>
-
-						{#if speedSource === 'preset'}
-							<div class="space-y-2">
-								{#each Object.values(IN_SERVICE_PRESETS) as preset}
-									<label class="flex items-start gap-2 rounded-md border border-border bg-bg-subtle p-3 text-sm has-[:checked]:border-primary-text has-[:checked]:bg-primary-text/5">
-										<input type="radio" bind:group={presetCategory} value={preset.category} class="mt-0.5" />
-										<div class="flex-1">
-											<div class="font-medium text-text-dark">{preset.label} — {preset.v_s} m/s</div>
-											<div class="text-xs text-text-muted">{preset.description}</div>
-											<div class="mt-1 text-xs text-text-muted">p = {preset.p} N/m²</div>
-										</div>
-									</label>
-								{/each}
-							</div>
-						{:else}
-							<div class="flex items-end gap-3">
-								<div class="flex-1">
-									<label for="manual-speed" class="mb-1 block text-xs font-medium text-text-muted">Wind speed v_s (m/s)</label>
-									<input id="manual-speed" type="number" step="0.1" min="0" bind:value={manualSpeed}
-										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
-								</div>
-								<div class="text-xs text-text-muted">→ p = {pressure ? fmt(pressure.p) : '—'} N/m²</div>
-							</div>
-						{/if}
+						<details class="text-xs text-text-muted">
+							<summary class="cursor-pointer">Reference: AS 5222 design pressure classes</summary>
+							<p class="mt-2">
+								The standard tabulates three design classes for structural sizing —
+								secured / light-wind, normal outdoor, and process / continuous-duty —
+								at 14, 20, and 28.5 m/s respectively. Use the standard's own table when
+								specifying a structural design pressure; for operational lift planning,
+								enter the forecast wind speed above (BoM forecast or site anemometer).
+							</p>
+						</details>
 					</div>
 				{/if}
 
