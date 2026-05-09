@@ -4,6 +4,11 @@
 	import { suspendedLoad, memberForce } from '$lib/wind-calc/in-service';
 	import { outOfService } from '$lib/wind-calc/out-of-service';
 	import {
+		flatPlate, cylinder, rectangularBox, lattice,
+		type ShapeKind, type CylinderSurface, type LatticeMember,
+		type FlatPlateResult, type CylinderResult, type RectBoxResult, type LatticeResult
+	} from '$lib/wind-calc/shape-coeff';
+	import {
 		IN_SERVICE_PRESETS,
 		MODE_LABELS,
 		type CalcMode,
@@ -43,6 +48,20 @@
 	let thetaDeg = $state(90);
 	let oosA = $state<number | null>(null);
 	let oosCf = $state<number | null>(null);
+
+	// ── Shape coefficient calculator inputs ─────────────────────────────────
+	let shapeKind: ShapeKind = $state('flat-plate');
+	let plateLength = $state(2);
+	let plateBreadth = $state(1);
+	let cylDiameter = $state(0.3);
+	let cylVelocity = $state(20);
+	let cylSurface: CylinderSurface = $state('smooth');
+	let boxDepth = $state(1);
+	let boxBreadth = $state(1);
+	let latticeSolidity = $state(0.2);
+	let latticeMember: LatticeMember = $state('sharp-edge');
+	let latticeMemberDiameter = $state(0.05);
+	let latticeVelocity = $state(20);
 
 	// ── Live results (Svelte 5 $derived) ─────────────────────────────────────
 	type Outcome<T> = { result: T | null; error: string };
@@ -98,10 +117,46 @@
 			: { result: null, error: '' }
 	);
 
+	type ShapeResult = FlatPlateResult | CylinderResult | RectBoxResult | LatticeResult;
+	const shapeOutcome = $derived.by((): Outcome<ShapeResult> => {
+		if (mode !== 'shape-coefficient') return { result: null, error: '' };
+		return compute(() => {
+			switch (shapeKind) {
+				case 'flat-plate':
+					return flatPlate({ length: plateLength, breadth: plateBreadth });
+				case 'cylinder':
+					return cylinder({ diameter: cylDiameter, velocity: cylVelocity, surface: cylSurface });
+				case 'rectangular-box':
+					return rectangularBox({ depthAlongWind: boxDepth, breadthAcrossWind: boxBreadth });
+				case 'lattice':
+					return lattice({
+						solidity: latticeSolidity,
+						member: latticeMember,
+						velocity: latticeVelocity,
+						memberDiameter: latticeMemberDiameter
+					});
+			}
+		});
+	});
+
 	const suspendedResult = $derived(suspendedOutcome.result);
 	const memberResult = $derived(memberOutcome.result);
 	const oosResult = $derived(oosOutcome.result);
-	const error = $derived(suspendedOutcome.error || memberOutcome.error || oosOutcome.error);
+	const shapeResult = $derived(shapeOutcome.result);
+	const error = $derived(
+		suspendedOutcome.error || memberOutcome.error || oosOutcome.error || shapeOutcome.error
+	);
+
+	function useAsCoefficient(target: 'member' | 'suspended-load') {
+		if (!shapeResult) return;
+		if (target === 'member') {
+			Cf = shapeResult.C_f;
+			mode = 'member';
+		} else {
+			cH = shapeResult.C_f;
+			mode = 'suspended-load';
+		}
+	}
 
 	function fmt(n: number | null | undefined, dp = 2): string {
 		if (typeof n !== 'number' || !isFinite(n)) return '—';
@@ -116,8 +171,16 @@
 	const modes: [CalcMode, string][] = [
 		['suspended-load', MODE_LABELS['suspended-load']],
 		['member', MODE_LABELS['member']],
-		['out-of-service', MODE_LABELS['out-of-service']]
+		['out-of-service', MODE_LABELS['out-of-service']],
+		['shape-coefficient', MODE_LABELS['shape-coefficient']]
 	];
+
+	const SHAPE_LABELS: Record<ShapeKind, string> = {
+		'flat-plate': 'Flat plate / panel',
+		'cylinder': 'Circular section',
+		'rectangular-box': 'Rectangular / structural',
+		'lattice': 'Lattice frame'
+	};
 </script>
 
 <SeoMeta
@@ -177,7 +240,13 @@
 			<!-- Inputs -->
 			<div>
 				{#if mode === 'suspended-load' || mode === 'member'}
-					<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-text-dark">Wind speed</h2>
+					<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-text-dark">Wind speed</h2>
+					<p class="mb-3 rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-900">
+						<strong>Design pressure, not operational limit.</strong> The presets are AS 5222
+						structural-sizing values. Operational shutdown wind comes from the OEM duty
+						manual — typically around 9–14 m/s for mobile cranes, lower for booms with
+						large sail loads.
+					</p>
 					<div class="mb-6 space-y-3">
 						<div class="flex gap-3">
 							<label class="flex items-center gap-2 text-sm">
@@ -344,6 +413,109 @@
 						</div>
 					</div>
 				{/if}
+
+				{#if mode === 'shape-coefficient'}
+					<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-text-dark">Shape</h2>
+					<div class="space-y-3">
+						<div>
+							<label for="shape-kind" class="mb-1 block text-xs font-medium text-text-muted">Member type</label>
+							<select id="shape-kind" bind:value={shapeKind}
+								class="w-full rounded border border-border bg-bg-light px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none">
+								<option value="flat-plate">{SHAPE_LABELS['flat-plate']}</option>
+								<option value="cylinder">{SHAPE_LABELS.cylinder}</option>
+								<option value="rectangular-box">{SHAPE_LABELS['rectangular-box']}</option>
+								<option value="lattice">{SHAPE_LABELS.lattice}</option>
+							</select>
+						</div>
+
+						{#if shapeKind === 'flat-plate'}
+							<p class="text-xs text-text-muted">Drag coefficient as a function of plate aspect ratio λ = length / breadth (Hoerner plate-drag curve).</p>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label for="plate-l" class="mb-1 block text-xs font-medium text-text-muted">Length (m)</label>
+									<input id="plate-l" type="number" step="0.1" min="0.001" bind:value={plateLength}
+										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+								</div>
+								<div>
+									<label for="plate-b" class="mb-1 block text-xs font-medium text-text-muted">Breadth (m)</label>
+									<input id="plate-b" type="number" step="0.1" min="0.001" bind:value={plateBreadth}
+										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+								</div>
+							</div>
+						{/if}
+
+						{#if shapeKind === 'cylinder'}
+							<p class="text-xs text-text-muted">Re = v · d / ν (with ν = 1.5×10⁻⁵ m²/s for air at 20 °C). C_f drops sharply through the drag-crisis around Re ≈ 3×10⁵.</p>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label for="cyl-d" class="mb-1 block text-xs font-medium text-text-muted">Diameter d (m)</label>
+									<input id="cyl-d" type="number" step="0.01" min="0.001" bind:value={cylDiameter}
+										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+								</div>
+								<div>
+									<label for="cyl-v" class="mb-1 block text-xs font-medium text-text-muted">Wind speed v (m/s)</label>
+									<input id="cyl-v" type="number" step="0.5" min="0.001" bind:value={cylVelocity}
+										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+								</div>
+							</div>
+							<div>
+								<label for="cyl-surf" class="mb-1 block text-xs font-medium text-text-muted">Surface</label>
+								<select id="cyl-surf" bind:value={cylSurface}
+									class="w-full rounded border border-border bg-bg-light px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none">
+									<option value="smooth">Smooth (polished steel pipe)</option>
+									<option value="rough">Rough (galvanised, painted, weathered)</option>
+								</select>
+							</div>
+						{/if}
+
+						{#if shapeKind === 'rectangular-box'}
+							<p class="text-xs text-text-muted">Sharp-edged rectangular section, normal incidence. d = section depth along wind, b = breadth across wind.</p>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label for="box-d" class="mb-1 block text-xs font-medium text-text-muted">Depth d (m, along wind)</label>
+									<input id="box-d" type="number" step="0.05" min="0.001" bind:value={boxDepth}
+										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+								</div>
+								<div>
+									<label for="box-b" class="mb-1 block text-xs font-medium text-text-muted">Breadth b (m, across wind)</label>
+									<input id="box-b" type="number" step="0.05" min="0.001" bind:value={boxBreadth}
+										class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+								</div>
+							</div>
+						{/if}
+
+						{#if shapeKind === 'lattice'}
+							<p class="text-xs text-text-muted">C_f referred to solid (member) area. Round-tube members follow the same Reynolds-number drag law as a single cylinder.</p>
+							<div>
+								<label for="lat-phi" class="mb-1 block text-xs font-medium text-text-muted">Solidity ratio φ (0–1)</label>
+								<input id="lat-phi" type="number" step="0.05" min="0" max="1" bind:value={latticeSolidity}
+									class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+							</div>
+							<div>
+								<label for="lat-mem" class="mb-1 block text-xs font-medium text-text-muted">Member shape</label>
+								<select id="lat-mem" bind:value={latticeMember}
+									class="w-full rounded border border-border bg-bg-light px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none">
+									<option value="sharp-edge">Sharp-edge (angles, channels, flats)</option>
+									<option value="round-tube">Round tube</option>
+								</select>
+							</div>
+							{#if latticeMember === 'round-tube'}
+								<div class="grid grid-cols-2 gap-3">
+									<div>
+										<label for="lat-d" class="mb-1 block text-xs font-medium text-text-muted">Member dia. (m)</label>
+										<input id="lat-d" type="number" step="0.005" min="0.001" bind:value={latticeMemberDiameter}
+											class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+									</div>
+									<div>
+										<label for="lat-v" class="mb-1 block text-xs font-medium text-text-muted">Wind speed (m/s)</label>
+										<input id="lat-v" type="number" step="0.5" min="0.001" bind:value={latticeVelocity}
+											class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
+									</div>
+								</div>
+							{/if}
+						{/if}
+					</div>
+				{/if}
 			</div>
 
 			<!-- Results -->
@@ -450,6 +622,60 @@
 								</tbody>
 							</table>
 						</details>
+					</div>
+				{/if}
+
+				{#if mode === 'shape-coefficient' && shapeResult}
+					<div class="space-y-3 rounded-md border border-border bg-bg-subtle p-4">
+						{@render resultRow('Member type', SHAPE_LABELS[shapeResult.kind], false)}
+
+						{#if shapeResult.kind === 'flat-plate'}
+							{@render resultRow('Aspect ratio λ', fmt(shapeResult.aspectRatio, 2), false)}
+						{/if}
+
+						{#if shapeResult.kind === 'cylinder'}
+							{@render resultRow('Reynolds number Re', fmt(shapeResult.Re, 0), false)}
+							{@render resultRow('Flow regime', shapeResult.regime, false)}
+							{@render resultRow('Surface', shapeResult.surface, false)}
+						{/if}
+
+						{#if shapeResult.kind === 'rectangular-box'}
+							{@render resultRow('Depth / breadth d/b', fmt(shapeResult.depthOverBreadth, 2), false)}
+						{/if}
+
+						{#if shapeResult.kind === 'lattice'}
+							{@render resultRow('Solidity ratio φ', fmt(shapeResult.solidity, 2), false)}
+							{@render resultRow('Member shape', shapeResult.member, false)}
+							{#if shapeResult.Re !== undefined}
+								{@render resultRow('Reynolds number Re', fmt(shapeResult.Re, 0), false)}
+								{@render resultRow('Flow regime', shapeResult.regime ?? '—', false)}
+							{/if}
+						{/if}
+
+						<hr class="border-border" />
+						{@render resultRow('Computed C_f', fmt(shapeResult.C_f, 2), true)}
+
+						<div class="mt-3 flex flex-col gap-2 print:hidden sm:flex-row">
+							<button
+								type="button"
+								onclick={() => useAsCoefficient('member')}
+								class="flex-1 rounded-md border border-primary-text bg-primary-text/5 px-3 py-1.5 text-xs font-medium text-primary-text transition-colors hover:bg-primary-text/10"
+							>
+								Use as C_f → Crane Member tab
+							</button>
+							<button
+								type="button"
+								onclick={() => useAsCoefficient('suspended-load')}
+								class="flex-1 rounded-md border border-primary-text bg-primary-text/5 px-3 py-1.5 text-xs font-medium text-primary-text transition-colors hover:bg-primary-text/10"
+							>
+								Use as c_H → Suspended Load tab
+							</button>
+						</div>
+
+						<p class="text-xs italic text-text-muted">
+							First-principles estimate from textbook aerodynamics. For authoritative values
+							against AS 5222 §5.4 Table 2 see the standard.
+						</p>
 					</div>
 				{/if}
 			</div>

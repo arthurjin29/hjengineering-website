@@ -7,12 +7,13 @@
  * the standard; user supplies them with reference back to AS 5222 Tables.
  */
 
-export type CalcMode = 'suspended-load' | 'member' | 'out-of-service';
+export type CalcMode = 'suspended-load' | 'member' | 'out-of-service' | 'shape-coefficient';
 
 export const MODE_LABELS: Record<CalcMode, string> = {
 	'suspended-load': 'Suspended Load',
 	'member': 'Crane Member',
-	'out-of-service': 'Out-of-Service / Storm'
+	'out-of-service': 'Out-of-Service / Storm',
+	'shape-coefficient': 'Shape Coefficient'
 };
 
 /** AS 5222 Table 1 — In-service design wind categories */
@@ -29,22 +30,25 @@ export interface InServicePreset {
 export const IN_SERVICE_PRESETS: Record<InServiceCategory, InServicePreset> = {
 	'secured': {
 		category: 'secured',
-		label: 'Secured / light winds',
-		description: 'Cranes ordinarily secured against wind, or designed for light winds only',
+		label: 'Secured / light-wind class',
+		description:
+			'Design value for cranes ordinarily secured against wind, or designed only for light-wind operation (e.g. tower cranes that can be lowered, low-chassis equipment).',
 		v_s: 14,
 		p: 125
 	},
 	'normal': {
 		category: 'normal',
-		label: 'Normal outdoor',
-		description: 'All normal types of crane installed in the open',
+		label: 'Normal outdoor class',
+		description:
+			'Design value for normal outdoor cranes. Sets the structural sizing pressure — not the operational shutdown wind speed (the OEM duty manual typically caps operation around 9–14 m/s).',
 		v_s: 20,
 		p: 250
 	},
 	'process': {
 		category: 'process',
-		label: 'Process / continuous',
-		description: 'Cranes in process applications that must continue working in high winds',
+		label: 'Process / continuous-duty class',
+		description:
+			'Design value for process-duty cranes (dockside, steel-mill, cyclone-region installations) that must keep working in high winds. Structural sizing only — operators still observe the duty manual shutdown threshold.',
 		v_s: 28.5,
 		p: 500
 	}
