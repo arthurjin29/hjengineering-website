@@ -1055,3 +1055,85 @@
   line-height: 1.3;
 }
 .dlc-app .results-table tr.muted-row .sub-detail { color: #c8c8c8; }
+
+/* ── Disclaimer banner (top of layout) ──────────────────────────────────── */
+.dlc-app .dlc-disclaimer {
+  background: #fdecea;
+  border: 1px solid #f5b7b1;
+  border-left: 4px solid #c0392b;
+  border-radius: 4px;
+  padding: 0.8rem 1rem;
+  margin: 0 0 1.2rem 0;
+  font-family: Georgia, serif;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #4a1d18;
+}
+.dlc-app .dlc-disclaimer p { margin: 0; }
+.dlc-app .dlc-disclaimer strong { color: #922b21; }
+
+/* ── Action row (Save / Print / Export buttons) ─────────────────────────── */
+.dlc-app .action-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
+/* ── Print / Save-as-PDF rules ──────────────────────────────────────────── */
+@media print {
+  /* Hide the website chrome — nav and footer live outside .dlc-app, so we
+     target them globally; the rule is scoped to the dual-lift route because
+     dual-lift.css is only loaded by /tools/dual-lift-calculator/+layout.svelte. */
+  nav, footer { display: none !important; }
+  main { padding-top: 0 !important; }
+  body { background: white !important; }
+
+  /* Hide interactive buttons */
+  .dlc-app button,
+  .dlc-app .btn-small,
+  .dlc-app .action-row { display: none !important; }
+
+  /* Tighten the disclaimer for paper */
+  .dlc-app .dlc-disclaimer {
+    background: white !important;
+    border: 1px solid #c0392b !important;
+    border-left-width: 4px !important;
+    page-break-inside: avoid;
+  }
+
+  /* Cards print as flat blocks, no shadow, page-break friendly */
+  .dlc-app .card,
+  .dlc-app .baseline-card,
+  .dlc-app .baseline-card-inline {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    background: white !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .dlc-app .baseline-card-inline {
+    position: static !important;  /* sticky doesn't make sense on paper */
+  }
+
+  /* Avoid breaking tables across pages */
+  .dlc-app .results-table,
+  .dlc-app .baseline-table,
+  .dlc-app .credit-table {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Section headings stick to their content */
+  .dlc-app h2, .dlc-app h3 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* Reduce body padding for paper margins (the printer adds its own) */
+  .dlc-app { padding: 0 !important; }
+
+  /* Disable hover transitions etc. */
+  .dlc-app * { transition: none !important; }
+}

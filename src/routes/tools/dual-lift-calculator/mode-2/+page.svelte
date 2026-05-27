@@ -442,9 +442,10 @@
       </div>
     </div>
 
-    <div style="text-align: right; margin-top: 0.8rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+    <div class="action-row">
       <button class="btn-small btn-secondary" onclick={exportCsv}>Export CSV</button>
       <button class="btn-small" onclick={saveCase}>Save case (JSON)</button>
+      <button class="btn-small" onclick={() => window.print()}>Print / Save as PDF</button>
     </div>
   </section>
 
