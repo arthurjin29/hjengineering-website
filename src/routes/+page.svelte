@@ -82,12 +82,20 @@
 			Purpose-built tools for crane and rigging professionals
 		</p>
 	</div>
-	<div class="mx-auto grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-3">
+	<div class="mx-auto grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
 		<a href="/tools/sling-calculator" class="group rounded-lg border border-border bg-bg-light p-6 transition-colors hover:border-primary-text">
 			<div class="mb-2 text-2xl">📐</div>
 			<h3 class="mb-1.5 text-base font-semibold text-text-dark">Sling Length Calculator</h3>
 			<p class="mb-3 text-sm leading-relaxed text-text-muted">
 				6 rigging configurations — calculates sling lengths, angles, and forces for multi-crane lifts.
+			</p>
+			<span class="text-sm font-medium text-primary-text">Open Tool →</span>
+		</a>
+		<a href="/tools/dual-lift-calculator" class="group rounded-lg border border-border bg-bg-light p-6 transition-colors hover:border-primary-text">
+			<div class="mb-2 text-2xl">⚖️</div>
+			<h3 class="mb-1.5 text-base font-semibold text-text-dark">Dual-Lift Load Share</h3>
+			<p class="mb-3 text-sm leading-relaxed text-text-muted">
+				Per-crane load share for tandem lifts — dual lift &amp; place and rotation / tailing. AS 2550.1 §6.28 compliant.
 			</p>
 			<span class="text-sm font-medium text-primary-text">Open Tool →</span>
 		</a>
