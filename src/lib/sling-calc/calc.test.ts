@@ -521,3 +521,25 @@ describe('Slack-leg tolerance', () => {
 		expect(Math.abs(ratio - 2.0)).toBeLessThan(0.05);
 	});
 });
+
+// === HOOK-OVER-COG (beam translates to sit over an offset COG) ===
+// With a widthwise beam and the COG offset lengthwise (perpendicular to the beam
+// axis), the hook/pickup must stay directly above the COG in plan view.
+// rectLPs(10,4): X is the long axis, so 'widthwise' runs along Y; a lengthwise
+// COG offset is along X — the component a beam-axis projection used to discard.
+describe('Hook stays above COG (perpendicular offset)', () => {
+	for (const [name, calcFn] of [
+		['lifting beam', liftbeamCalc] as const,
+		['spreader beam', spreaderCalc] as const
+	]) {
+		it(`${name}: hook x/y == cog x/y`, () => {
+			const cog = { x: 2, y: 0, z: 0 };
+			const r = calcFn(
+				{ liftingPoints: rectLPs(10, 4), cog, minAngleDeg: 45, totalLoad: 20 },
+				{ beamLength: 3, orientation: 'widthwise' }
+			);
+			expect(Math.abs(r.hook.x - cog.x)).toBeLessThan(0.01);
+			expect(Math.abs(r.hook.y - cog.y)).toBeLessThan(0.01);
+		});
+	}
+});
