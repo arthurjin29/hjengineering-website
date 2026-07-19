@@ -52,6 +52,7 @@
 		if (configType === 'spreader-beam' || configType === 'lifting-beam') {
 			config.beamLength = beamLength;
 			config.orientation = orientation as 'lengthwise' | 'widthwise';
+			config.bottomSlingLen = bottomSlingLen;
 		} else if (configType === 'stinger') {
 			config.topSlingLength = topSlingLength;
 		} else if (configType === 'double-parallel') {
@@ -175,7 +176,7 @@
 
 				<!-- Config-specific inputs -->
 				{#if configType === 'spreader-beam' || configType === 'lifting-beam'}
-					<div class="mb-4 grid grid-cols-2 gap-3">
+					<div class="mb-4 grid grid-cols-3 gap-3">
 						<div>
 							<label for="beam-length" class="mb-1 block text-xs font-medium text-text-muted">Beam Length (m)</label>
 							<input id="beam-length" type="number" step="0.1" min="0.1" bind:value={beamLength}
@@ -188,6 +189,11 @@
 								<option value="lengthwise">Lengthwise</option>
 								<option value="widthwise">Widthwise</option>
 							</select>
+						</div>
+						<div>
+							<label for="min-sling-spr" class="mb-1 block text-xs font-medium text-text-muted">Min Sling (m)</label>
+							<input id="min-sling-spr" type="number" step="0.1" min="0" bind:value={bottomSlingLen}
+								class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none" />
 						</div>
 					</div>
 				{:else if configType === 'stinger'}

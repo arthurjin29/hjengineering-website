@@ -12,8 +12,8 @@
 import type { SharedInputs, ConfigInputs, CalcResult, Point3D } from './types';
 import {
 	degToRad, round4, horizontalDist, dist3D, pointInPolygon2D,
-	buildSling, calcLoadDistribution, computeVerticalLoad,
-	autoPairLPs, computeBeamEndPair
+	buildSling, computeVerticalLoad, autoPairLPs,
+	computeSupportReactions, solveHangingBeam, applyLoadSharingFactor
 } from './calc-core';
 
 const TOP_ANGLE_WARN_DEG = 30;
@@ -31,20 +31,33 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	const groupALabels = groupAIdxs.map(i => 'LP' + (i + 1));
 	const groupBLabels = groupBIdxs.map(i => 'LP' + (i + 1));
 
-	// 2. Compute hook from 4-leg direct geometry
+	// 2. Per-LP vertical shares (min-norm rigid-body reactions)
+	const reactions = computeSupportReactions(liftingPoints, cog, totalLoad);
+	const anyNegReaction = reactions.some(r => r < -1e-9);
+	const wA0 = Math.max(0, reactions[groupAIdxs[0]]);
+	const wA1 = Math.max(0, reactions[groupAIdxs[1]]);
+	const wB0 = Math.max(0, reactions[groupBIdxs[0]]);
+	const wB1 = Math.max(0, reactions[groupBIdxs[1]]);
+
+	// 3. Fixed-length hanging beams. Hook is over the total COG; its height is set by
+	//    the min top-sling angle over the beam ends. Poses depend on the hook height
+	//    and the hook height depends on the ends, so iterate.
 	const hookXY: Point3D = { x: cog.x, y: cog.y, z: 0 };
-	const hDists = liftingPoints.map(lp => horizontalDist(lp, hookXY));
-	const requiredHookZs = liftingPoints.map((lp, i) => lp.z + hDists[i] * Math.tan(minAngleRad));
-	const hook: Point3D = { x: cog.x, y: cog.y, z: Math.max(...requiredHookZs) };
-
-	// 3. Place beam ends on direct sling paths (shared core helper, target = hook)
-	const pairA = computeBeamEndPair(groupALPs[0], groupALPs[1], hook, beamLengthA!, minSlingLen);
-	const pairB = computeBeamEndPair(groupBLPs[0], groupBLPs[1], hook, beamLengthB!, minSlingLen);
-
-	const beamA1 = pairA.end0;
-	const beamA2 = pairA.end1;
-	const beamB1 = pairB.end0;
-	const beamB2 = pairB.end1;
+	let hookZ = Math.max(...liftingPoints.map(lp => lp.z + horizontalDist(lp, hookXY) * Math.tan(minAngleRad)));
+	let beamA1: Point3D = { x: 0, y: 0, z: 0 }, beamA2: Point3D = { x: 0, y: 0, z: 0 };
+	let beamB1: Point3D = { x: 0, y: 0, z: 0 }, beamB2: Point3D = { x: 0, y: 0, z: 0 };
+	let convergedA = true, convergedB = true, hookConverged = false;
+	for (let outer = 0; outer < 12; outer++) {
+		const rA = solveHangingBeam(groupALPs[0], groupALPs[1], wA0, wA1, hookXY, hookZ, beamLengthA!, minAngleRad, minSlingLen);
+		const rB = solveHangingBeam(groupBLPs[0], groupBLPs[1], wB0, wB1, hookXY, hookZ, beamLengthB!, minAngleRad, minSlingLen);
+		beamA1 = rA.end0; beamA2 = rA.end1; beamB1 = rB.end0; beamB2 = rB.end1;
+		convergedA = rA.converged; convergedB = rB.converged;
+		const ends = [beamA1, beamA2, beamB1, beamB2];
+		const newHookZ = Math.max(...ends.map(e => e.z + horizontalDist(e, hookXY) * Math.tan(minAngleRad)));
+		if (Math.abs(newHookZ - hookZ) < 1e-4) { hookZ = newHookZ; hookConverged = true; break; }
+		hookZ = newHookZ;
+	}
+	const hook: Point3D = { x: cog.x, y: cog.y, z: hookZ };
 
 	// 4. COG polygon validation
 	const cogOutsidePolygon = !pointInPolygon2D(cog, liftingPoints);
@@ -83,26 +96,20 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 		));
 	}
 
-	// 7. Tensions
-
-	// Top tier: 4-sling load distribution
-	const topTensions = calcLoadDistribution(allBeamEnds, hook, totalLoad);
-	for (let i = 0; i < 4; i++) topSlings[i].tension = round4(topTensions[i]);
-
-	// Bottom tier: each bottom sling carries the vertical load of its beam end
-	const beamEndVLoads: number[] = [];
+	// 7. Tensions — per-beam determinate: each end's top vertical component is that
+	//    LP's load share (replaces the 4-leg calcLoadDistribution).
+	const endW = [wA0, wA1, wB0, wB1];
 	for (let i = 0; i < 4; i++) {
-		beamEndVLoads.push(computeVerticalLoad(topTensions[i], allBeamEnds[i], hook));
+		const be = allBeamEnds[i], w = endW[i];
+		const topLen = dist3D(be, hook);
+		const topVd = hook.z - be.z;
+		topSlings[i].tension = round4(topVd > 1e-9 ? w * topLen / topVd : w);
 	}
 	for (let i = 0; i < 4; i++) {
-		const s = bottomSlings[i];
+		const s = bottomSlings[i], w = endW[i];
 		const len = dist3D(s.from, s.to);
 		const vd = Math.abs(s.to.z - s.from.z);
-		if (len < 0.0001 || vd < 0.0001) {
-			s.tension = round4(beamEndVLoads[i]);
-		} else {
-			s.tension = round4(beamEndVLoads[i] * len / vd);
-		}
+		s.tension = round4((len < 0.0001 || vd < 0.0001) ? w : w * len / vd);
 	}
 
 	// 8. Vertical loads
@@ -137,6 +144,12 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	const actualBeamLenA = round4(dist3D(beamA1, beamA2));
 	const actualBeamLenB = round4(dist3D(beamB1, beamB2));
 
+	const loadSharingAnalysis = applyLoadSharingFactor(
+		bottomSlings.map(s => s.tension),
+		'double-parallel',
+		shared.toleranceMode
+	);
+
 	return {
 		configType: 'double-parallel',
 		hook: { x: round4(hook.x), y: round4(hook.y), z: round4(hook.z) },
@@ -150,6 +163,7 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			{ name: 'Bottom Slings', slings: bottomSlings },
 			{ name: 'Top Slings', slings: topSlings }
 		],
+		loadSharingAnalysis,
 		beams: [
 			{
 				name: 'Beam A',
@@ -181,7 +195,9 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			cogOutsidePolygon,
 			negativeTension,
 			topSlingAngleLow,
-			liftBeamBendingNotChecked: false
+			beamEquilibriumNotConverged: !convergedA || !convergedB || !hookConverged,
+			liftBeamBendingNotChecked: false,
+			subCogFallback: anyNegReaction
 		}
 	};
 }

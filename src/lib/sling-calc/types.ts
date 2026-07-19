@@ -44,6 +44,19 @@ export interface Warnings {
 	bottomAngleLow?: boolean;
 	nearHorizontalBottom?: boolean;
 	bottomSlingBelowMin?: boolean;
+	beamEquilibriumNotConverged?: boolean;
+	subCogFallback?: boolean;
+	spreaderBeamCapacityNotChecked?: boolean;
+}
+
+export interface LoadSharingAnalysis {
+	toleranceMode: string;
+	applicable: boolean;
+	factor: number | null;
+	baseMaxTension: number;
+	adjustedMaxTension: number | null;
+	source: string;
+	note: string;
 }
 
 export interface SlackLegScenario {
@@ -89,6 +102,7 @@ export interface CalcResult {
 	intermediatePoints: LabeledPoint[];
 	slackLegAnalysis: SlackLegAnalysis;
 	warnings: Warnings;
+	loadSharingAnalysis?: LoadSharingAnalysis;
 }
 
 export interface SharedInputs {
@@ -97,6 +111,7 @@ export interface SharedInputs {
 	minAngleDeg: number;
 	totalLoad: number;
 	toleranceMm?: number;
+	toleranceMode?: 'theoretical' | 'pct2_5' | 'pct12_5';
 }
 
 export type ConfigType =
@@ -119,6 +134,8 @@ export interface ConfigInputs {
 	masterLength?: number;
 	slaveLengthA?: number;
 	slaveLengthB?: number;
+	middleAngleDeg?: number;
+	topAngleDeg?: number;
 	pairing?: { groupA: number[]; groupB: number[] };
 }
 

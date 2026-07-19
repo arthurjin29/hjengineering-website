@@ -8,8 +8,9 @@
 import type { SharedInputs, ConfigInputs, CalcResult, Point3D } from './types';
 import {
 	degToRad, round4, horizontalDist, dist3D, pointInPolygon2D,
-	getOrientationAxis, computeBeamEnds, computeBeamEndZ,
-	buildSling, calcTwoSlingTension, calcLoadDistribution, computeVerticalLoad
+	getOrientationAxis, computeBeamEnds,
+	buildSling, computeVerticalLoad,
+	computeSupportReactions, solveSpreaderBeam, applyLoadSharingFactor
 } from './calc-core';
 
 const TOP_ANGLE_WARN_DEG = 30;
@@ -18,40 +19,30 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	const { liftingPoints, cog, minAngleDeg, totalLoad } = shared;
 	const { beamLength, orientation } = config;
 	const minAngleRad = degToRad(minAngleDeg);
+	const minSlingLen = config.bottomSlingLen || 2; // min bottom-sling length floor (parity with parallel/cascade)
 
-	// 1. Beam orientation axis
+	// 1. Beam orientation axis + seed placement (used ONLY to assign each LP to the
+	//    nearer end; the resting pose comes from the equilibrium solve below).
 	const axis = getOrientationAxis(liftingPoints, orientation!);
-
-	// 2. Beam centre — centred over the LP centroid ALONG its own axis, but
-	//    shifted perpendicular so the beam axis passes over the COG. This keeps
-	//    the hook directly above the COG for any in-plan COG offset.
 	const cx = liftingPoints.reduce((s, p) => s + p.x, 0) / 4;
 	const cy = liftingPoints.reduce((s, p) => s + p.y, 0) / 4;
 	const sAlong = (cx - cog.x) * axis.x + (cy - cog.y) * axis.y;
-	const beamCentre: Point3D = { x: cog.x + sAlong * axis.x, y: cog.y + sAlong * axis.y, z: 0 };
+	const seedCentre: Point3D = { x: cog.x + sAlong * axis.x, y: cog.y + sAlong * axis.y, z: 0 };
+	const seed = computeBeamEnds(seedCentre, beamLength!, axis);
 
-	// 3. Beam ends (XY, Z = 0 initially)
-	let { endA, endB } = computeBeamEnds(beamCentre, beamLength!, axis);
-
-	// 4. Auto-assign each LP to nearest beam end
+	// 2. Auto-assign each LP to the nearer seed end
 	const groupA: { lp: Point3D; idx: number; label: string }[] = [];
 	const groupB: { lp: Point3D; idx: number; label: string }[] = [];
 	for (let i = 0; i < liftingPoints.length; i++) {
 		const lp = liftingPoints[i];
-		const dA = horizontalDist(lp, endA);
-		const dB = horizontalDist(lp, endB);
-		if (dA <= dB) {
-			groupA.push({ lp, idx: i, label: 'LP' + (i + 1) });
-		} else {
-			groupB.push({ lp, idx: i, label: 'LP' + (i + 1) });
-		}
+		const g = (horizontalDist(lp, seed.endA) <= horizontalDist(lp, seed.endB)) ? groupA : groupB;
+		g.push({ lp, idx: i, label: 'LP' + (i + 1) });
 	}
-
 	// Ensure both groups have at least 1 LP (handle edge cases)
 	if (groupA.length === 0 || groupB.length === 0) {
 		const ranked = liftingPoints.map((lp, i) => ({
 			lp, idx: i, label: 'LP' + (i + 1),
-			dA: horizontalDist(lp, endA)
+			dA: horizontalDist(lp, seed.endA)
 		})).sort((a, b) => a.dA - b.dA);
 		groupA.length = 0;
 		groupB.length = 0;
@@ -59,38 +50,42 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 		ranked.slice(2).forEach(r => groupB.push(r));
 	}
 
-	// 5. Beam end Z from bottom sling min angle (per group)
-	endA.z = computeBeamEndZ(groupA.map(g => g.lp), endA, minAngleRad);
-	endB.z = computeBeamEndZ(groupB.map(g => g.lp), endB, minAngleRad);
+	// 3. Per-LP vertical shares (min-norm rigid-body reactions)
+	const reactions = computeSupportReactions(liftingPoints, cog, totalLoad);
+	const anyNegReaction = reactions.some(r => r < -1e-9);
+	const wOf = (g: { idx: number }) => Math.max(0, reactions[g.idx]);
+	const lpsA = groupA.map(g => g.lp), wsA = groupA.map(wOf);
+	const lpsB = groupB.map(g => g.lp), wsB = groupB.map(wOf);
+	const WA = wsA.reduce((s, v) => s + v, 0), WB = wsB.reduce((s, v) => s + v, 0);
 
-	// 6. COG polygon validation
+	// 4. Fixed-length free-hang solve. The beam is a physical bar of beamLength; every
+	//    sling attaches at an END, and the bar translates/yaws to hang plumb (net
+	//    horizontal ~0) with the hook over the COG. Hook height is set by the min
+	//    top-sling angle over the ends; pose depends on hook height and vice versa, so
+	//    iterate. Beam height is governed by the min bottom-sling angle AND the min
+	//    bottom-sling length (minSlingLen), whichever raises the beam more.
 	const cogOutsidePolygon = !pointInPolygon2D(cog, liftingPoints);
-
-	// 7. Hook position — in beam plane, projected along beam axis
-	const cogToEndA = { x: cog.x - endA.x, y: cog.y - endA.y };
-	const beamDir = { x: endB.x - endA.x, y: endB.y - endA.y };
-	const beamLen2D = Math.sqrt(beamDir.x * beamDir.x + beamDir.y * beamDir.y);
-	let hookX: number, hookY: number;
-	if (beamLen2D > 0.0001) {
-		const t = (cogToEndA.x * beamDir.x + cogToEndA.y * beamDir.y) / (beamLen2D * beamLen2D);
-		hookX = endA.x + t * beamDir.x;
-		hookY = endA.y + t * beamDir.y;
-	} else {
-		hookX = cog.x;
-		hookY = cog.y;
+	const hookXY = { x: cog.x, y: cog.y };
+	let hookZ = Math.max(...liftingPoints.map(lp => lp.z + horizontalDist(lp, { x: hookXY.x, y: hookXY.y, z: 0 }) * Math.tan(minAngleRad)));
+	let endA: Point3D = seed.endA, endB: Point3D = seed.endB;
+	let converged = true, hookConverged = false;
+	for (let outer = 0; outer < 12; outer++) {
+		const r = solveSpreaderBeam(lpsA, wsA, lpsB, wsB, { x: hookXY.x, y: hookXY.y, z: hookZ }, hookZ, beamLength!, minAngleRad, minSlingLen);
+		endA = r.end0; endB = r.end1; converged = r.converged;
+		const newHookZ = Math.max(
+			endA.z + horizontalDist(endA, { x: hookXY.x, y: hookXY.y, z: 0 }) * Math.tan(minAngleRad),
+			endB.z + horizontalDist(endB, { x: hookXY.x, y: hookXY.y, z: 0 }) * Math.tan(minAngleRad)
+		);
+		if (Math.abs(newHookZ - hookZ) < 1e-4) { hookZ = newHookZ; hookConverged = true; break; }
+		hookZ = newHookZ;
 	}
-	const hook: Point3D = { x: hookX, y: hookY, z: 0 };
+	const hook: Point3D = { x: cog.x, y: cog.y, z: hookZ };
 	const hDistAtoHook = horizontalDist(endA, hook);
 	const hDistBtoHook = horizontalDist(endB, hook);
-	hook.z = Math.max(
-		endA.z + hDistAtoHook * Math.tan(minAngleRad),
-		endB.z + hDistBtoHook * Math.tan(minAngleRad)
-	);
 
-	// 8. Bottom slings — each LP to its assigned beam end
+	// 5. Bottom slings — each LP to its assigned beam end
 	const bottomSlings = [];
 	let slingId = 1;
-
 	for (const g of groupA) {
 		bottomSlings.push(buildSling(slingId++,
 			{ x: g.lp.x, y: g.lp.y, z: g.lp.z, label: g.label },
@@ -104,7 +99,7 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 		));
 	}
 
-	// 9. Top slings (2 total)
+	// 6. Top slings (2 total)
 	const topSlingA = buildSling(slingId++,
 		{ x: endA.x, y: endA.y, z: endA.z, label: 'Beam End A' },
 		{ x: hook.x, y: hook.y, z: hook.z, label: 'Hook' }
@@ -115,59 +110,31 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	);
 	const topSlings = [topSlingA, topSlingB];
 
-	// 10. Tensions
-
-	// Top sling tensions
-	const [topTensionA, topTensionB] = calcTwoSlingTension(endA, endB, hook, totalLoad);
-	topSlingA.tension = round4(topTensionA);
-	topSlingB.tension = round4(topTensionB);
-
-	// Vertical load at each beam end
-	const vLoadA = computeVerticalLoad(topTensionA, endA, hook);
-	const vLoadB = computeVerticalLoad(topTensionB, endB, hook);
-
-	// Bottom sling tensions per group
-	const groupALPs = groupA.map(g => g.lp);
-	const groupBLPs = groupB.map(g => g.lp);
-
-	if (groupALPs.length === 2) {
-		const [t0, t1] = calcTwoSlingTension(groupALPs[0], groupALPs[1], endA, vLoadA);
-		bottomSlings[0].tension = round4(t0);
-		bottomSlings[1].tension = round4(t1);
-	} else if (groupALPs.length === 1) {
-		const len = dist3D(groupALPs[0], endA);
-		const vd = Math.abs(endA.z - groupALPs[0].z);
-		bottomSlings[0].tension = round4(vd > 1e-9 ? vLoadA * len / vd : vLoadA);
-	} else {
-		const tensions = calcLoadDistribution(groupALPs, endA, vLoadA);
-		for (let i = 0; i < groupA.length; i++) bottomSlings[i].tension = round4(tensions[i]);
+	// 7. Tensions — per-end determinate: a top sling carries its end's total load share
+	//    (WA / WB); a bottom sling carries its own LP's load. Matches the free-hang
+	//    solve (per-end loads, not a moment split).
+	const slingTension = (w: number, a: Point3D, b: Point3D) => {
+		const len = dist3D(a, b), vd = Math.abs(b.z - a.z);
+		return round4((len < 1e-4 || vd < 1e-4) ? w : w * len / vd);
+	};
+	topSlingA.tension = slingTension(WA, endA, hook);
+	topSlingB.tension = slingTension(WB, endB, hook);
+	const bWeights = [...wsA, ...wsB];
+	for (let i = 0; i < bottomSlings.length; i++) {
+		bottomSlings[i].tension = slingTension(bWeights[i], bottomSlings[i].from, bottomSlings[i].to);
 	}
 
-	const bOffset = groupA.length;
-	if (groupBLPs.length === 2) {
-		const [t0, t1] = calcTwoSlingTension(groupBLPs[0], groupBLPs[1], endB, vLoadB);
-		bottomSlings[bOffset].tension = round4(t0);
-		bottomSlings[bOffset + 1].tension = round4(t1);
-	} else if (groupBLPs.length === 1) {
-		const len = dist3D(groupBLPs[0], endB);
-		const vd = Math.abs(endB.z - groupBLPs[0].z);
-		bottomSlings[bOffset].tension = round4(vd > 1e-9 ? vLoadB * len / vd : vLoadB);
-	} else {
-		const tensions = calcLoadDistribution(groupBLPs, endB, vLoadB);
-		for (let i = 0; i < groupB.length; i++) bottomSlings[bOffset + i].tension = round4(tensions[i]);
-	}
-
-	// 11. Vertical loads
+	// 8. Vertical loads
 	const allSlings = [...bottomSlings, ...topSlings];
 	for (const s of allSlings) {
 		s.verticalLoad = round4(computeVerticalLoad(s.tension, s.from, s.to));
 	}
 
-	// 12. Warnings
+	// 9. Warnings
 	const topSlingAngleLow = topSlings.some(s => s.angleDegFromHoriz < TOP_ANGLE_WARN_DEG);
 	const negativeTension = allSlings.some(s => s.tension < 0);
 
-	// 13. Critical sling
+	// 10. Critical sling
 	let criticalTier = 'bottom';
 	let criticalIdx = 0;
 	let maxTension = -Infinity;
@@ -188,8 +155,14 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 	topSlingA.governsHookHeight = (hookZFromA >= hookZFromB);
 	topSlingB.governsHookHeight = (hookZFromB > hookZFromA);
 
-	// 14. Headroom
+	// 11. Headroom
 	const maxLPz = Math.max(...liftingPoints.map(p => p.z));
+
+	const loadSharingAnalysis = applyLoadSharingFactor(
+		bottomSlings.map(s => s.tension),
+		'spreader-beam',
+		shared.toleranceMode
+	);
 
 	return {
 		configType: 'spreader-beam',
@@ -204,6 +177,7 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			{ name: 'Bottom Slings', slings: bottomSlings },
 			{ name: 'Top Slings', slings: topSlings }
 		],
+		loadSharingAnalysis,
 		beams: [{
 			name: 'Spreader Beam',
 			endA: { x: round4(endA.x), y: round4(endA.y), z: round4(endA.z) },
@@ -224,6 +198,8 @@ export function calculate(shared: SharedInputs, config: ConfigInputs): CalcResul
 			cogOutsidePolygon,
 			negativeTension,
 			topSlingAngleLow,
+			beamEquilibriumNotConverged: !converged || !hookConverged,
+			subCogFallback: anyNegReaction,
 			liftBeamBendingNotChecked: false
 		}
 	};
