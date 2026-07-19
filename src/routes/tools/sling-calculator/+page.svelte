@@ -31,6 +31,7 @@
 	let slaveLengthA = $state(2);
 	let slaveLengthB = $state(2);
 	let bottomSlingLen = $state(2);
+	let toleranceMode: 'theoretical' | 'pct2_5' | 'pct12_5' = $state('theoretical');
 
 	function runCalculation() {
 		error = '';
@@ -45,7 +46,8 @@
 			],
 			cog: { x: cogX, y: cogY, z: cogZ },
 			minAngleDeg: minAngle,
-			totalLoad
+			totalLoad,
+			toleranceMode
 		};
 
 		const config: ConfigInputs = {};
@@ -245,6 +247,18 @@
 					</div>
 				{/if}
 
+				{#if configType === 'spreader-beam' || configType === 'double-parallel' || configType === 'double-cascade'}
+					<div class="mb-4">
+						<label for="tol-mode" class="mb-1 block text-xs font-medium text-text-muted">Load-share tolerance (Nobles Ed.2)</label>
+						<select id="tol-mode" bind:value={toleranceMode}
+							class="w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary-text focus:outline-none">
+							<option value="theoretical">Theoretical — rigid-body (×1.0)</option>
+							<option value="pct2_5">±2.5% length — matched slings</option>
+							<option value="pct12_5">±12.5% length — unmatched slings</option>
+						</select>
+					</div>
+				{/if}
+
 				<button
 					onclick={runCalculation}
 					class="w-full rounded-md bg-primary-text px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
@@ -277,11 +291,11 @@
 						</div>
 
 						<!-- Warnings -->
-						{#if results.warnings.cogOutsidePolygon || results.warnings.negativeTension || results.warnings.topSlingAngleLow}
+						{#if results.warnings.cogOutsidePolygon || results.warnings.negativeTension || results.warnings.topSlingAngleLow || results.warnings.beamEquilibriumNotConverged || results.warnings.subCogFallback || results.warnings.nearHorizontalBottom || results.warnings.bottomSlingBelowMin || results.warnings.spreaderBeamCapacityNotChecked}
 							<div class="mb-6 space-y-2">
-								{#if results.warnings.cogOutsidePolygon}
-									<div class="rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-										COG is outside the lifting point polygon
+								{#if results.warnings.beamEquilibriumNotConverged}
+									<div class="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+										Beam equilibrium did not converge — the geometry shown is an approximate fallback pose, not a settled solution. Revise the beam lengths or lifting-point layout and re-check before relying on these figures.
 									</div>
 								{/if}
 								{#if results.warnings.negativeTension}
@@ -289,11 +303,59 @@
 										Negative sling tension detected — check geometry
 									</div>
 								{/if}
+								{#if results.warnings.subCogFallback}
+									<div class="rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+										A support reaction went negative (COG outside the support kern) — per-leg load shares were clamped and are approximate. Treat the tensions as indicative only.
+									</div>
+								{/if}
+								{#if results.warnings.cogOutsidePolygon}
+									<div class="rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+										COG is outside the lifting point polygon
+									</div>
+								{/if}
 								{#if results.warnings.topSlingAngleLow}
 									<div class="rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
 										Top sling angle is below 30 degrees
 									</div>
 								{/if}
+								{#if results.warnings.nearHorizontalBottom}
+									<div class="rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+										A bottom sling is near horizontal (below 5°) — tension rises sharply at low angles
+									</div>
+								{/if}
+								{#if results.warnings.bottomSlingBelowMin}
+									<div class="rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+										A bottom sling is shorter than the specified minimum length
+									</div>
+								{/if}
+								{#if results.warnings.spreaderBeamCapacityNotChecked}
+									<div class="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+										Beams carry axial compression and bending that this tool does not size — verify beam capacity separately.
+									</div>
+								{/if}
+							</div>
+						{/if}
+
+						<!-- Load-share tolerance (Nobles Ed.2) -->
+						{#if results.loadSharingAnalysis}
+							<div class="mb-6 rounded-lg border border-border bg-bg-subtle p-4">
+								<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-text-dark">Load-Share Tolerance</h2>
+								<dl class="grid grid-cols-2 gap-2 text-sm">
+									<dt class="text-text-muted">Mode</dt>
+									<dd class="font-mono text-text-dark">{results.loadSharingAnalysis.toleranceMode}</dd>
+									<dt class="text-text-muted">Theoretical max tension</dt>
+									<dd class="font-mono text-text-dark">{results.loadSharingAnalysis.baseMaxTension.toFixed(2)} t</dd>
+									{#if results.loadSharingAnalysis.applicable && results.loadSharingAnalysis.factor !== null}
+										<dt class="text-text-muted">Tolerance factor</dt>
+										<dd class="font-mono text-text-dark">×{results.loadSharingAnalysis.factor.toFixed(2)}</dd>
+										<dt class="text-text-muted">Adjusted max tension</dt>
+										<dd class="font-mono font-semibold text-text-dark">{results.loadSharingAnalysis.adjustedMaxTension?.toFixed(2)} t</dd>
+									{/if}
+								</dl>
+								{#if results.loadSharingAnalysis.note}
+									<p class="mt-2 text-xs text-yellow-800">{results.loadSharingAnalysis.note}</p>
+								{/if}
+								<p class="mt-1 text-xs text-text-muted">{results.loadSharingAnalysis.source}</p>
 							</div>
 						{/if}
 

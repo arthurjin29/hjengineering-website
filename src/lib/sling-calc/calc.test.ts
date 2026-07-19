@@ -12,6 +12,7 @@ import { calculate as stingerCalc } from './calc-stinger';
 import { calculate as liftbeamCalc } from './calc-liftbeam';
 import { calculate as doubleParCalc } from './calc-double-par';
 import { calculate as doubleCasCalc } from './calc-double-cas';
+import { applyLoadSharingFactor } from './calc-core';
 
 type CalcFn = (s: SharedInputs, c: ConfigInputs) => CalcResult;
 
@@ -542,4 +543,71 @@ describe('Hook stays above COG (perpendicular offset)', () => {
 			expect(Math.abs(r.hook.y - cog.y)).toBeLessThan(0.01);
 		});
 	}
+});
+
+// Load-share tolerance factors — Nobles "Lifting the Bar" Edition 2 (empirical 4-leg testing)
+describe('Load-share tolerance (applyLoadSharingFactor)', () => {
+	interface LSFCase {
+		name: string; tensions: number[]; config: string; mode?: 'theoretical' | 'pct2_5' | 'pct12_5';
+		applicable: boolean; factor: number | null; base?: number; adjusted?: number; toleranceMode?: string;
+	}
+	const cases: LSFCase[] = [
+		// Theoretical mode — factor 1, always applicable
+		{ name: 'theoretical-direct', tensions: [4, 3, 2, 1], config: 'direct', mode: 'theoretical', applicable: true, factor: 1.0, base: 4, adjusted: 4, toleranceMode: 'theoretical' },
+		{ name: 'theoretical-empty-config', tensions: [5], config: '', mode: 'theoretical', applicable: true, factor: 1.0, base: 5, adjusted: 5 },
+		{ name: 'theoretical-undefined-mode', tensions: [10, 8], config: 'direct', mode: undefined, applicable: true, factor: 1.0, base: 10, adjusted: 10, toleranceMode: 'theoretical' },
+		// ±2.5% — Nobles measured
+		{ name: 'pct2_5-direct', tensions: [5, 4, 3, 2], config: 'direct', mode: 'pct2_5', applicable: true, factor: 1.88, base: 5, adjusted: 9.4 },
+		{ name: 'pct2_5-spreader', tensions: [5, 4, 3, 2], config: 'spreader-beam', mode: 'pct2_5', applicable: true, factor: 1.18, base: 5, adjusted: 5.9 },
+		{ name: 'pct2_5-stinger', tensions: [5, 4, 3, 2], config: 'stinger', mode: 'pct2_5', applicable: true, factor: 1.36, base: 5, adjusted: 6.8 },
+		{ name: 'pct2_5-liftbeam-as-spreader', tensions: [5], config: 'lifting-beam', mode: 'pct2_5', applicable: true, factor: 1.18, adjusted: 5.9 },
+		{ name: 'pct2_5-doublepar-as-spreader', tensions: [5], config: 'double-parallel', mode: 'pct2_5', applicable: true, factor: 1.18, adjusted: 5.9 },
+		{ name: 'pct2_5-doublecas-as-stinger', tensions: [5], config: 'double-cascade', mode: 'pct2_5', applicable: true, factor: 1.36, adjusted: 6.8 },
+		// ±12.5% — Nobles measured for spreader/stinger families only
+		{ name: 'pct12_5-spreader', tensions: [10], config: 'spreader-beam', mode: 'pct12_5', applicable: true, factor: 1.68, adjusted: 16.8 },
+		{ name: 'pct12_5-stinger', tensions: [10], config: 'stinger', mode: 'pct12_5', applicable: true, factor: 2.0, adjusted: 20.0 },
+		// ±12.5% direct NOT measured → not applicable
+		{ name: 'pct12_5-direct-not-measured', tensions: [10], config: 'direct', mode: 'pct12_5', applicable: false, factor: null },
+		// Unknown config → not applicable (theoretical is the safe fallback)
+		{ name: 'pct2_5-unknown-config', tensions: [10], config: 'unknown-arrangement', mode: 'pct2_5', applicable: false, factor: null },
+		// baseMaxTension picks the max regardless of order
+		{ name: 'base-picks-max', tensions: [1, 5, 3, 2], config: 'spreader-beam', mode: 'pct2_5', applicable: true, factor: 1.18, base: 5, adjusted: 5.9 }
+	];
+	for (const c of cases) {
+		it(c.name, () => {
+			const r = applyLoadSharingFactor(c.tensions, c.config, c.mode);
+			expect(r.applicable).toBe(c.applicable);
+			expect(r.factor).toBe(c.factor);
+			if (c.base !== undefined) expect(r.baseMaxTension).toBeCloseTo(c.base, 3);
+			if (c.adjusted !== undefined) expect(r.adjustedMaxTension ?? 0).toBeCloseTo(c.adjusted, 3);
+			if (c.toleranceMode !== undefined) expect(r.toleranceMode).toBe(c.toleranceMode);
+		});
+	}
+});
+
+// Min bottom-sling-length floor (spreader) — the length floor raises the beam beyond the
+// min-angle requirement. rectLPs(6,3): hd 1.5, 30° → za 0.866; 2 m floor → zl sqrt(4-2.25)
+// = 1.323 governs, so the shortest bottom sling == the 2 m floor.
+describe('Spreader min bottom-sling-length floor', () => {
+	it('length floor governs the shortest bottom sling', () => {
+		const shared: SharedInputs = { liftingPoints: rectLPs(6, 3), cog: { x: 0, y: 0, z: 0 }, minAngleDeg: 30, totalLoad: 10 };
+		const config: ConfigInputs = { beamLength: 6, orientation: 'lengthwise', bottomSlingLen: 2 };
+		const r = spreaderCalc(shared, config);
+		const bottom = r.tiers[0].slings;
+		const minLen = Math.min(...bottom.map(s => s.length));
+		expect(bottom.every(s => s.length >= config.bottomSlingLen! - 0.01)).toBe(true);
+		expect(minLen).toBeCloseTo(config.bottomSlingLen!, 1);
+		expect(r.warnings.beamEquilibriumNotConverged).toBeFalsy();
+	});
+});
+
+// subCogFallback fires when the COG sits outside the support kern (a support reaction goes
+// negative and is clamped); result must stay finite.
+describe('subCogFallback (COG outside support kern)', () => {
+	it('fires and keeps tensions finite', () => {
+		const shared: SharedInputs = { liftingPoints: rectLPs(6, 3), cog: { x: 8, y: 0, z: 0 }, minAngleDeg: 45, totalLoad: 10 };
+		const r = spreaderCalc(shared, { beamLength: 6, orientation: 'lengthwise', bottomSlingLen: 2 });
+		expect(r.warnings.subCogFallback).toBe(true);
+		for (const s of r.tiers.flatMap(t => t.slings)) expect(isFinite(s.tension)).toBe(true);
+	});
 });
