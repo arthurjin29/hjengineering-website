@@ -37,12 +37,14 @@
       {
         "id": 1,
         "x_mm": 2020,
-        "offset_m": 2.02
+        "offset_m": 2.02,
+        "chart_lug_label": "A"
       },
       {
         "id": 2,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1,
+        "chart_lug_label": "B"
       }
     ],
     "back_lug_x_mm": 2920,
@@ -220,7 +222,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -402,7 +404,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -596,7 +598,7 @@
       {
         "id": 1,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       }
     ],
     "back_lug_x_mm": 6520,
@@ -752,7 +754,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -846,7 +848,7 @@
       {
         "id": 2,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       },
       {
         "id": 3,
@@ -961,7 +963,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -1077,17 +1079,20 @@
       {
         "id": 1,
         "x_mm": 710,
-        "offset_m": 0.71
+        "offset_m": 0.71,
+        "chart_lug_label": "A"
       },
       {
         "id": 2,
         "x_mm": 1410,
-        "offset_m": 1.41
+        "offset_m": 1.41,
+        "chart_lug_label": "B"
       },
       {
         "id": 3,
         "x_mm": 2175,
-        "offset_m": 2.175
+        "offset_m": 2.175,
+        "chart_lug_label": "C"
       }
     ],
     "back_lug_x_mm": 6182,
@@ -1341,7 +1346,7 @@
       {
         "id": 1,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       },
       {
         "id": 2,
@@ -1597,7 +1602,7 @@
   },
   {
     "id": "OLB-18",
-    "wll_t": 5.0,
+    "wll_t": 5,
     "wll_source": "inferred_from_chart",
     "length_mm": 12013,
     "self_weight_kg": 1600,
@@ -1644,7 +1649,7 @@
       {
         "id": 3,
         "x_mm": 5000,
-        "offset_m": 5.0
+        "offset_m": 5
       }
     ],
     "back_lug_x_mm": 11814,
@@ -1735,7 +1740,7 @@
       }
     },
     "cert": {
-      "wll_t": 5.0,
+      "wll_t": 5,
       "by": "GTC Engineering",
       "note": "Geometry drawing-confirmed (Arthur 2026-07-09): lugs 3300/3700/5000, length 12013, back-lug 11814, ballast first hole (position A) 6515 at 300 pitch. Hole keys 1..18 map to drawing positions A..R. Lug-3 usable positions 1-2 (A-B) only. CoG still geometric-mid estimate."
     }
@@ -1778,7 +1783,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -1788,7 +1793,7 @@
       {
         "id": 3,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       }
     ],
     "back_lug_x_mm": 5828,
@@ -1891,7 +1896,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -1901,7 +1906,7 @@
       {
         "id": 3,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       }
     ],
     "back_lug_x_mm": 4657,
@@ -2159,7 +2164,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -2169,7 +2174,7 @@
       {
         "id": 3,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       }
     ],
     "back_lug_x_mm": 4613,
@@ -2255,7 +2260,7 @@
       {
         "id": 1,
         "x_mm": 1000,
-        "offset_m": 1.0
+        "offset_m": 1
       },
       {
         "id": 2,
@@ -2356,7 +2361,7 @@
       {
         "id": 2,
         "x_mm": 2000,
-        "offset_m": 2.0
+        "offset_m": 2
       },
       {
         "id": 3,

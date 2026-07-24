@@ -43,7 +43,7 @@ function lugRun() { return state.beam.back_lug_x_mm - lugObj().x_mm; }
 function renderLugs() {
   const b = currentBeam(); if (!b) return;
   $('lugs').innerHTML = b.offset_lugs.map((l, i) =>
-    `<label><input type="radio" name="lug" value="${l.id}" ${i === 0 ? 'checked' : ''}/> ${l.id} (${l.offset_m} m)</label>`).join(' ');
+    `<label><input type="radio" name="lug" value="${l.id}" ${i === 0 ? 'checked' : ''}/> ${window.lugLabel(b, l.id)} (${l.offset_m} m)</label>`).join(' ');
   $('rigmode').hidden = !(b.maker === 'Maxirig');   // rigging-mode toggle is Maxirig-only
   defaultLoadToLug();   // start at the lug's max usable load
 }
@@ -457,7 +457,7 @@ function updatePanel(su, ev, acc, tension) {
       `<br/>Hole ${ev.hole} balances <strong>${ev.balancingLoadKg.toFixed(0)} kg</strong> &nbsp; Capacity util: ${util}` +
       `<br/>Beam: <strong>${tilt}</strong> &nbsp; Top sling ${su.valid ? su.frontAngleDeg.toFixed(0) + '°' : '—'} &nbsp; Rear leg ${su.valid ? su.rearAngleDeg.toFixed(0) + '°' : '—'} &nbsp; head ${(su.T/1000).toFixed(2)} m` +
       `<br/>Tension (static): ${fmtTension(tension)}` +
-      `<br/>Counterweight ${((ev.holeXMm - lugObj().x_mm) / 1000).toFixed(2)} m from lug ${state.lugId}` +
+      `<br/>Counterweight ${((ev.holeXMm - lugObj().x_mm) / 1000).toFixed(2)} m from lug ${window.lugLabel(state.beam, state.lugId)}` +
       chartGuideLine(ev)) +
     (msgs.length ? `<div class="muted">${msgs.join('<br/>')}</div>` : '');
 }

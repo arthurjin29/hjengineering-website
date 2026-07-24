@@ -20,6 +20,14 @@ function lugById(beam, lugId) {
   return beam.offset_lugs.find(l => l.id === Number(lugId));
 }
 
+// Display label for an offset lug: the source chart's own lug tag when the chart letters its lugs
+// (OLB-1 = A/B, OLB-14 = A/B/C) — else the numeric id. Internal ids stay numeric; this is display
+// only, so a rigger reading the app sees the same lug label as the physical GTC chart.
+function lugLabel(beam, lugId) {
+  const l = beam.offset_lugs.find(x => x.id === Number(lugId));
+  return (l && l.chart_lug_label) || String(lugId);
+}
+
 // Ballast hole X for an index. Beams may give EXPLICIT positions (`ballast.holes_x_mm`,
 // e.g. unequally-spaced pins) — preferred; otherwise the constant first_hole + pitch·i.
 function holeXAt(beam, i) {
@@ -263,9 +271,9 @@ function evaluateHole(beam, lugId, holeIndex, loadKg, angleDeg, wingKg) {
   if (capacity.reason === 'invalid_load') messages.push('Enter a load greater than 0.');
   if (capacity.reason === 'over_wll') messages.push('Load exceeds beam WLL (' + capacity.wllKg + ' kg).');
   if (capacity.reason === 'not_rated') messages.push('Position ' + hole + ' is struck out for lug ' +
-    lugId + ' on the maker chart — this combination must not be used. Choose a rated position.');
+    lugLabel(beam, lugId) + ' on the maker chart — this combination must not be used. Choose a rated position.');
   if (capacity.reason === 'over_chart') messages.push('Load exceeds the certified capacity for lug ' +
-    lugId + ' at position ' + hole + ' (' + capacity.governingKg.toFixed(0) + ' kg).');
+    lugLabel(beam, lugId) + ' at position ' + hole + ' (' + capacity.governingKg.toFixed(0) + ' kg).');
   if (!supported) {
     // Only send the operator rearward if a RATED position actually balances more than this one —
     // on lugs whose rear positions are all struck out, "move toward the rear" points at prohibited
@@ -275,7 +283,7 @@ function evaluateHole(beam, lugId, holeIndex, loadKg, angleDeg, wingKg) {
     messages.push('Hole ' + hole + ' balances only ' + balancingLoadKg.toFixed(0) +
       ' kg — under the ' + loadKg + ' kg load (counterweight too light here; back chain would go slack). ' +
       (heavier ? 'Move the counterweight toward the rear.'
-               : 'No rated position at lug ' + lugId + ' balances this load — use a different offset lug.'));
+               : 'No rated position at lug ' + lugLabel(beam, lugId) + ' balances this load — use a different offset lug.'));
   }
   else if (overBalanceKg > 1) messages.push('Counterweight over-balances by ' + overBalanceKg.toFixed(0) +
     ' kg — the back chain restrains the residual.');
@@ -292,10 +300,10 @@ function selectConfig(beam, lugId, loadKg, angleDeg) {
   const messages = [];
   if (capacity.reason === 'invalid_load') messages.push('Enter a load greater than 0.');
   if (capacity.reason === 'over_wll') messages.push('Load exceeds beam WLL (' + capacity.wllKg + ' kg).');
-  if (capacity.reason === 'not_rated') messages.push('No rated counterweight position at lug ' + lugId +
+  if (capacity.reason === 'not_rated') messages.push('No rated counterweight position at lug ' + lugLabel(beam, lugId) +
     ' balances this load — the positions that would balance it are struck out on the maker chart.');
   if (capacity.reason === 'over_chart') messages.push('Load exceeds the certified capacity for lug ' +
-    lugId + ' at position ' + balance.hole + ' (' + capacity.governingKg.toFixed(0) + ' kg).');
+    lugLabel(beam, lugId) + ' at position ' + balance.hole + ' (' + capacity.governingKg.toFixed(0) + ' kg).');
   if (!balance.supported) messages.push(
     'Counterweight cannot balance this load at this lug — even the rear-most position only balances ' +
     balance.maxBalanceKg.toFixed(0) + ' kg. Try a different offset lug.');
@@ -348,7 +356,7 @@ function chartTableHtml(beam, opts) {
     return { txt: Number(v).toLocaleString(), special: false };
   };
   const thead = '<tr><th class="poscol">C/W Pos</th>' +
-    lugIds.map(l => `<th class="${l === selLug ? 'sel' : ''}">Lug ${l}</th>`).join('') + '</tr>';
+    lugIds.map(l => `<th class="${l === selLug ? 'sel' : ''}">Lug ${lugLabel(beam, l)}</th>`).join('') + '</tr>';
   const rows = holes.map(h => {
     const tds = lugIds.map(l => {
       const c = cell(l, h);
@@ -411,4 +419,4 @@ function findSuitableBeams(beams, loadKg, offsetM) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { lugById, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
+if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };

@@ -1,3 +1,11 @@
+// Lug display label — self-contained mirror of selector.lugLabel (diagram.js stays dependency-free
+// so its node test needs no selector import). Chart-lettered lugs (OLB-1 = A/B, OLB-14 = A/B/C)
+// show their letter; everything else shows the numeric id.
+function lugTag(beam, lugId) {
+  const l = beam.offset_lugs.find(x => x.id === Number(lugId));
+  return (l && l.chart_lug_label) || String(lugId);
+}
+
 // Side-elevation SVG of the offset lifting beam as a two-leg suspension, to true scale (mm).
 // The beam tilts to equilibrium; front (top) sling + rear leg (chain block) drawn from the hook.
 // view = { lugId, holeIndex, holeXMm, hole, loadKg, ok, su, chainBlockMm }
@@ -147,7 +155,7 @@ function renderDiagram(beam, view) {
   // lug numbers above each cleat (small, clear of the lug body)
   beam.offset_lugs.forEach(l => {
     const sel = l.id === Number(view.lugId);
-    L.push(`<text x="${lx(l.x_mm)}" y="${(-(cleatHoleH + 28)*scale).toFixed(1)}" text-anchor="middle" font-size="16" fill="${sel ? '#1f6feb' : '#5b6670'}" font-weight="${sel ? '700' : '600'}">${l.id}</text>`);
+    L.push(`<text x="${lx(l.x_mm)}" y="${(-(cleatHoleH + 28)*scale).toFixed(1)}" text-anchor="middle" font-size="16" fill="${sel ? '#1f6feb' : '#5b6670'}" font-weight="${sel ? '700' : '600'}">${lugTag(beam, l.id)}</text>`);
   });
   // counterweight rigidly bolted below the beam (2 bolts) — tilts with the beam
   const cwx = view.holeXMm * scale, bw = blockW * scale, bh = blockH * scale;
@@ -159,7 +167,7 @@ function renderDiagram(beam, view) {
   L.push(`<line data-role="cw-pin" x1="${cwx.toFixed(1)}" y1="${boltTop.toFixed(1)}" x2="${cwx.toFixed(1)}" y2="${(blockTop + bh * 0.3).toFixed(1)}" stroke="#2b3038" stroke-width="2.5"/>`);
   L.push(`<rect x="${(cwx - bw / 2).toFixed(1)}" y="${blockTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${accent}" stroke="#16331f" stroke-width="1.5"/>`);
   L.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 14).toFixed(1)}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">${((beam.ballast_kg + (view.wingKg || 0)) / 1000).toFixed(2)} T${view.wingKg ? ' (incl. wings)' : ''} · Hole ${view.hole}</text>`);
-  L.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 28).toFixed(1)}" text-anchor="middle" fill="#333" font-size="16">${(cwtFromLugMm/1000).toFixed(2)} m from lug ${view.lugId}</text>`);
+  L.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 28).toFixed(1)}" text-anchor="middle" fill="#333" font-size="16">${(cwtFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
   L.push(`</g>`);
   // ballast letters LAST (on top of the counterweight block) with a white halo so they stay legible.
   // Dense hole rows (e.g. OLB-14: 48 holes at 100 mm pitch) thin to every Nth label so labels
@@ -294,7 +302,7 @@ function renderMaxirigDiagram(beam, view) {
     const sel = l.id === Number(view.lugId);
     const pe = padeyeSvg(l.x_mm, l.dia_mm || frontDia, scale, SX, SY, sel ? '#1f6feb' : '#c9d2da', '#2b3038', 1.3);
     L2.push(pe.svg);
-    L2.push(`<text x="${SX(l.x_mm)}" y="${(Number(SY(pe.topY))-6).toFixed(1)}" text-anchor="middle" font-size="16" fill="${sel ? '#1f6feb' : '#5b6670'}" font-weight="${sel ? 700 : 600}">${l.id}</text>`);
+    L2.push(`<text x="${SX(l.x_mm)}" y="${(Number(SY(pe.topY))-6).toFixed(1)}" text-anchor="middle" font-size="16" fill="${sel ? '#1f6feb' : '#5b6670'}" font-weight="${sel ? 700 : 600}">${lugTag(beam, l.id)}</text>`);
   });
   // rear lift lug padeye (labelled R above the boss, no number)
   {
@@ -326,7 +334,7 @@ function renderMaxirigDiagram(beam, view) {
   const cwLabel = pick.hole != null ? `Pos ${pick.hole}` : 'no valid pos';
   const cwLabelX = Math.max(70, Math.min(svgW - 70, Number(SX(cwCenter))));   // keep the middle-anchored label inside the viewBox
   L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+16}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">C/W ${(beam.counterweight_kg/1000).toFixed(2)} t · ${cwLabel}</text>`);
-  if (pick.distFromLugMm != null) L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+31}" text-anchor="middle" fill="#333" font-size="16">${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${view.lugId}</text>`);
+  if (pick.distFromLugMm != null) L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+31}" text-anchor="middle" fill="#333" font-size="16">${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
 
   // ballast letters LAST — on top of the block, white halo so a number is never hidden
   beam.ballast.holes.forEach((letter, i) => {
@@ -469,7 +477,7 @@ function renderMaxirigChainBlock(beam, view) {
     const sel = l.id === Number(view.lugId);
     const pe = padeyeSvg(l.x_mm, l.dia_mm || frontDia, scale, SXg, SYg, sel ? '#1f6feb' : '#c9d2da', '#2b3038', 1.3);
     L2.push(pe.svg);
-    L2.push(`<text x="${lx(l.x_mm)}" y="${(-(aH(l.dia_mm || frontDia) + 42) * scale).toFixed(1)}" text-anchor="middle" font-size="16" fill="${sel ? '#1f6feb' : '#5b6670'}" font-weight="${sel ? 700 : 600}">${l.id}</text>`);
+    L2.push(`<text x="${lx(l.x_mm)}" y="${(-(aH(l.dia_mm || frontDia) + 42) * scale).toFixed(1)}" text-anchor="middle" font-size="16" fill="${sel ? '#1f6feb' : '#5b6670'}" font-weight="${sel ? 700 : 600}">${lugTag(beam, l.id)}</text>`);
   });
   {
     const pe = padeyeSvg(beam.back_lug_x_mm, rearDia, scale, SXg, SYg, '#c9d2da', '#2b3038', 1.3);
@@ -494,7 +502,7 @@ function renderMaxirigChainBlock(beam, view) {
   L2.push(`<line data-role="cw-pin" x1="${cwx.toFixed(1)}" y1="${boltTop.toFixed(1)}" x2="${cwx.toFixed(1)}" y2="${(blockTop + bh * 0.3).toFixed(1)}" stroke="#2b3038" stroke-width="2.5"/>`);
   L2.push(`<rect x="${(cwx - bw / 2).toFixed(1)}" y="${blockTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${accent}" stroke="#16331f" stroke-width="1.5"/>`);
   L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 14).toFixed(1)}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">${((beam.counterweight_kg + (view.wingKg || 0)) / 1000).toFixed(2)} t${view.wingKg ? ' (incl. wings)' : ''} · Hole ${view.hole}</text>`);
-  L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 28).toFixed(1)}" text-anchor="middle" fill="#333" font-size="16">${(cwtFromLugMm/1000).toFixed(2)} m from lug ${view.lugId}</text>`);
+  L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 28).toFixed(1)}" text-anchor="middle" fill="#333" font-size="16">${(cwtFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
   L2.push(`</g>`);
   // ballast letters LAST (over the block, white halo)
   const nHoles = beam.ballast.holes.length;
