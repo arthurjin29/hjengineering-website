@@ -91,6 +91,14 @@
 			</p>
 			<span class="text-sm font-medium text-primary-text">Open Tool →</span>
 		</a>
+		<a href="/tools/offset-beam-selector/index.html" class="group rounded-lg border border-border bg-bg-light p-6 transition-colors hover:border-primary-text">
+			<div class="mb-2 text-2xl">🪝</div>
+			<h3 class="mb-1.5 text-base font-semibold text-text-dark">Offset Beam Selector</h3>
+			<p class="mb-3 text-sm leading-relaxed text-text-muted">
+				Select a GTC or Maxirig offset lifting beam — counterweight position, rigging angles and load chart for an offset pick.
+			</p>
+			<span class="text-sm font-medium text-primary-text">Open Tool →</span>
+		</a>
 		<a href="/tools/dual-lift-calculator" class="group rounded-lg border border-border bg-bg-light p-6 transition-colors hover:border-primary-text">
 			<div class="mb-2 text-2xl">⚖️</div>
 			<h3 class="mb-1.5 text-base font-semibold text-text-dark">Dual-Lift Load Share</h3>

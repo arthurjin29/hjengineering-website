@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Offset Lifting Beam Selector — GTC / HJ Engineering</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23123a5f'/%3E%3Ctext x='8' y='12' font-size='11' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='700'%3EH%3C/text%3E%3C/svg%3E"/>
+<link rel="stylesheet" href="css/style.css?v=48"/>
+</head>
+<body>
+<header class="page-head">
+  <h1>Offset Lifting Beam Selector</h1>
+  <p class="subtitle">Select a GTC or Maxirig offset beam, counterweight position and rigging for an offset pick.</p>
+</header>
+<div class="layout">
+  <div class="col-left">
+    <div class="mode-toggle no-print">
+      <button type="button" id="mode-pick" class="btn-mode active">Pick a beam</button>
+      <button type="button" id="mode-find" class="btn-mode">Find a beam</button>
+    </div>
+    <div id="pick-pane">
+    <form id="f" class="card">
+      <label>Beam <select id="beam"></select></label>
+      <label>Load (kg) <input id="load" type="number" min="0" step="any" value="10000"/></label>
+      <fieldset><legend>Offset lug</legend><span id="lugs"></span></fieldset>
+      <fieldset id="rigmode" hidden><legend>Rigging mode</legend>
+        <label><input type="radio" name="rigmode" value="fixed" checked/> Manufacturer slings (fixed)</label>
+        <label><input type="radio" name="rigmode" value="chainblock"/> Chain block at rear</label>
+      </fieldset>
+      <button type="submit">Calculate</button>
+    </form>
+    <details id="chartpanel" class="chartpanel"><summary>Load chart (reference)</summary><div id="chartbody"></div></details>
+    <section id="result"></section>
+    <div id="beamflags" hidden></div>
+    <div id="fixedrig" hidden>
+      <label id="wingtoggle" hidden><input type="checkbox" id="wing"/> Wing weights fitted (2&times;750&nbsp;kg) &mdash; use the amended load chart</label>
+    </div>
+    <div id="controls" class="card" hidden>
+      <label style="display:block;margin:.3rem 0">Top sling (front) <input id="ts" type="range" step="50"/> <span id="tsval">—</span></label>
+      <label style="display:block;margin:.3rem 0">Rear chain <input id="rc" type="range" step="50"/> <span id="rcval">—</span></label>
+      <label style="display:block;margin:.3rem 0">Rear chain block <input id="cb" type="range" min="500" max="6000" step="50" value="3000"/> <span id="cbval">3.00 m</span>
+        <button type="button" id="levelbtn">Level the beam</button>
+        <span style="margin-left:1rem"><input type="checkbox" id="detach"/> Load detached</span></label>
+      <p class="muted">Sling lengths default to the 8&nbsp;m soft cap — overwrite freely (amber ⚠ warns past 8&nbsp;m). Drag the counterweight to balance; drag the chain block (or “Level the beam”) to fine-level.</p>
+    </div>
+    </div>
+    <div id="find-pane" hidden>
+      <form id="findform" class="card">
+        <label>Load (kg) <input id="find-load" type="number" min="0" step="any" placeholder="e.g. 5000"/></label>
+        <label>Required offset (m) <input id="find-offset" type="number" min="0" step="any" placeholder="e.g. 3.0"/></label>
+        <button type="submit">Find suitable beams</button>
+      </form>
+      <div id="findresults"></div>
+    </div>
+  </div>
+  <div class="col-right">
+    <div class="card diagram-card"><div id="diagram"></div></div>
+  </div>
+</div>
+<footer class="disclaimer">Indicative selection aid. Verify against the GTC load chart / certificate before lifting.</footer>
+<script src="js/selector.js?v=48"></script>
+<script src="js/diagram.js?v=48"></script>
+<script src="js/app.js?v=48"></script>
+</body>
+</html>

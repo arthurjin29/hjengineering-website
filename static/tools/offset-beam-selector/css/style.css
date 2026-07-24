@@ -1,0 +1,179 @@
+/* Offset Lifting Beam Selector — HJ Engineering house style.
+   Tokens mirror the sibling Sling Length Calculator on hjengineering.com.au so the
+   two tools read as one product. */
+:root {
+  --primary: #1a5276;
+  --primary-light: #2980b9;
+  --accent: #e67e22;
+  --danger: #c0392b;
+  --success: #27ae60;
+  --bg: #f5f6fa;
+  --card-bg: #ffffff;
+  --text: #2c3e50;
+  --text-light: #7f8c8d;
+  --border: #dcdde1;
+  --radius: 8px;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+  padding: 1rem;
+}
+
+/* Page header (full width, above the split) */
+.page-head { margin: 0 0 .7rem; }
+h1 { color: var(--primary); font-size: 1.6rem; margin: 0 0 .15rem; }
+.subtitle { color: var(--text-light); font-size: .92rem; margin: 0; }
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* Form controls */
+form label { display: block; margin: .55rem 0; font-weight: 600; font-size: .9rem; color: var(--text); }
+input, select {
+  padding: .4rem .55rem; font-size: 1rem; border: 1px solid var(--border);
+  border-radius: 4px; background: #fff; color: var(--text); max-width: 100%;
+}
+/* Beam names run long (e.g. "MR10577 — Maxirig 20.3t × 6.8m"); keep the select inside its column
+   so a narrow viewport never gets horizontal scroll. */
+#beam { width: 100%; }
+input:focus, select:focus {
+  outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 2px rgba(41,128,185,.2);
+}
+fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem .75rem; margin: .6rem 0; }
+legend { font-weight: 600; font-size: .82rem; color: var(--primary-light); padding: 0 .3rem; }
+fieldset label { display: inline-flex; align-items: center; gap: .3rem; margin: .15rem .7rem .15rem 0; font-weight: 500; }
+
+/* Buttons — brand primary; secondary (Level) mirrors sling-calc .btn-secondary */
+button[type=submit] {
+  margin-top: .6rem; padding: .6rem 1.6rem; border: none; border-radius: var(--radius);
+  font-size: .95rem; font-weight: 600; cursor: pointer; color: #fff;
+  background: var(--primary); transition: background .2s;
+}
+button[type=submit]:hover { background: var(--primary-light); }
+#levelbtn {
+  padding: .35rem .8rem; font-size: .82rem; font-weight: 600; cursor: pointer;
+  background: var(--border); color: var(--text); border: none; border-radius: var(--radius);
+  transition: background .2s;
+}
+#levelbtn:hover { background: #bdc3c7; }
+
+/* Result panel — brand success/danger with an accent rail (matches sling-calc result cards) */
+#result {
+  padding: 1rem 1.15rem; border: 1px solid var(--border); border-left: 4px solid var(--border);
+  border-radius: var(--radius); background: #fff; margin-bottom: 1rem;
+}
+#result:empty { display: none; }
+#result.ok   { border-left-color: var(--success); background: #f2fbf5; }
+#result.fail { border-left-color: var(--danger);  background: #fdedec; }
+#result strong { color: var(--primary); }
+#result.ok   strong:first-child { color: var(--success); }
+#result.fail strong:first-child { color: var(--danger); }
+
+.muted { color: var(--text-light); font-size: .88rem; }
+
+/* Provenance / safety notes — compact, closed-by-default disclosure (not loud amber banners).
+   Present for a public tool; the footer disclaimer still carries the verify-before-lift caveat. */
+#beamflags { margin: .5rem 0; }
+.beamnotes { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); background: #fffdf6; }
+.beamnotes > summary { cursor: pointer; font-size: .84rem; font-weight: 600; color: #7d6608; padding: .4rem .6rem; list-style-position: inside; }
+.beamnotes[open] > summary { border-bottom: 1px solid #f0e3b8; }
+.beamnotes .note { font-size: .82rem; color: #7d6608; padding: .3rem .6rem; }
+.beamnotes .note + .note { border-top: 1px solid #f5ecca; }
+
+/* Rigging controls card */
+#controls { padding: 1rem 1.15rem; }
+#controls label { font-weight: 600; font-size: .85rem; color: var(--text); }
+input[type=range] { accent-color: var(--primary); vertical-align: middle; }
+
+/* Disclaimer — brand style, pinned full-width under the tool */
+.disclaimer {
+  margin: 1.25rem 0 0;
+  background: #fef9e7; border: 1px solid #f0c040; border-left: 4px solid var(--accent);
+  color: #7d6608; padding: .7rem 1rem; border-radius: var(--radius); font-size: .85rem;
+}
+
+/* Reference load-chart panel */
+.chartpanel { margin-bottom: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; padding: .35rem .7rem; }
+.chartpanel > summary { cursor: pointer; font-weight: 600; font-size: .92rem; color: var(--primary); }
+.chart-hdr { color: var(--text-light); font-size: .8rem; margin: .45rem 0 .3rem; }
+.refchart-wrap { overflow-x: auto; }
+table.refchart { border-collapse: collapse; width: 100%; font-size: .78rem; }
+table.refchart th, table.refchart td { border: 1px solid var(--border); padding: .14rem .45rem; text-align: right; white-space: nowrap; }
+table.refchart thead th { background: var(--primary); color: #fff; text-align: center; }
+table.refchart thead th.sel { background: var(--primary-light); }
+table.refchart th.poscol { text-align: center; background: #eef3f7; color: var(--text); }
+table.refchart td.special { color: var(--danger); font-style: italic; text-align: center; }
+table.refchart .sel { background: #eaf2f8; }
+table.refchart tr.recrow > th.poscol, table.refchart tr.recrow > td { background: #fef9e7; }
+table.refchart tr.recrow > td.sel { background: #fdebc8; }
+
+/* Diagram */
+.diagram-card { padding: .6rem; }
+/* Before the first Calculate (and after a beam switch clears it) #diagram is empty. Rather than a
+   bare white box OR a hidden void on the right, show a placeholder hint so the pane reads as ready. */
+.diagram-card:has(#diagram:empty) { display: flex; align-items: center; justify-content: center; min-height: 220px; }
+.diagram-card:has(#diagram:empty)::before {
+  content: "Select a beam and load, then press Calculate to see the rigging diagram.";
+  color: var(--text-light); font-size: .92rem; text-align: center; max-width: 22rem; padding: 1rem;
+}
+/* Diagram sits at 85% of the column width (dialled back 15% from full-bleed) and is pushed down
+   from the top of the pane, so it reads at a comfortable size rather than filling the whole height.
+   Centred horizontally; height capped at 85% of the viewport for tall beams. */
+#diagram svg {
+  width: 85%; height: auto; max-width: 100%; max-height: calc((100vh - 130px) * 0.85);
+  border: 1px solid var(--border); border-radius: 4px; display: block; margin: 2.5rem auto 0; background: #fff;
+}
+
+/* Split layout: fixed-ish controls column on the left, diagram takes ALL remaining width on the
+   right (1fr) so the tool uses the full window — no grey gap beside the drawing. */
+.layout {
+  margin: 0;
+  display: grid; grid-template-columns: minmax(380px, 480px) 1fr;
+  gap: 1.25rem; align-items: start;
+}
+.col-left { min-width: 0; }
+.col-right { min-width: 0; position: sticky; top: 1rem; align-self: start; }
+
+/* Below ~1100px collapse to a single column with the diagram after the controls. */
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr; }
+  .col-right { position: static; }
+}
+
+/* Mode toggle (Pick a beam / Find a beam) */
+.mode-toggle { display: flex; gap: .5rem; margin-bottom: 1rem; }
+.btn-mode {
+  padding: .45rem 1rem; font-size: .9rem; font-weight: 600; cursor: pointer;
+  background: #fff; color: var(--primary); border: 1px solid var(--border);
+  border-radius: var(--radius); transition: background .2s, color .2s;
+}
+.btn-mode:hover { background: #eef3f7; }
+.btn-mode.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* Find mode: no diagram column, finder + results use the full width */
+.layout.find-mode { grid-template-columns: 1fr; }
+.layout.find-mode .col-right { display: none; }
+
+/* Finder results table (brand table look) */
+#findresults { margin-top: 1rem; overflow-x: auto; }
+table.findtable { border-collapse: collapse; width: 100%; font-size: .9rem; }
+table.findtable thead th { background: var(--primary); color: #fff; padding: .5rem .7rem; text-align: right; white-space: nowrap; }
+table.findtable thead th:first-child, table.findtable thead th:nth-child(2) { text-align: left; }
+table.findtable td { padding: .45rem .7rem; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.findtable td:first-child, table.findtable td:nth-child(2) { text-align: left; }
+table.findtable td:first-child { font-weight: 600; color: var(--primary); }
+tr.findrow { cursor: pointer; }
+tr.findrow:hover { background: #eaf2f8; }
+tr.findrow:focus { outline: 2px solid var(--primary-light); outline-offset: -2px; }
+.result-empty { padding: 1rem 1.15rem; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius); background: #fef9e7; color: #7d6608; }

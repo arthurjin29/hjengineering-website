@@ -53,6 +53,13 @@
 							Sling Length Calculator
 						</a>
 						<a
+							href="/tools/offset-beam-selector/index.html"
+							class="block px-4 py-2 text-sm text-text-body transition-colors hover:bg-bg-subtle hover:text-text-dark"
+							onclick={closeTools}
+						>
+							Offset Beam Selector
+						</a>
+						<a
 							href="/tools/wind-calculator"
 							class="block px-4 py-2 text-sm text-text-body transition-colors hover:bg-bg-subtle hover:text-text-dark"
 							onclick={closeTools}
@@ -113,6 +120,7 @@
 		>
 			<a href="/services" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Services</a>
 			<a href="/tools/sling-calculator" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Sling Length Calculator</a>
+			<a href="/tools/offset-beam-selector/index.html" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Offset Beam Selector</a>
 			<a href="/tools/wind-calculator" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Wind Load Calculator</a>
 			<a href="/tools/access-map" class="flex items-center gap-2 rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>
 				NHVR Access Map
