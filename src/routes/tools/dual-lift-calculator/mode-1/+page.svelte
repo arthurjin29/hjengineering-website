@@ -1,7 +1,7 @@
 <!-- web/src/routes/mode-1/+page.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { computeDynamic, computeLanding } from '$lib/dual-lift-calc/mode1';
+  import { computeStatic, computeDynamic, computeLanding, checkGeometry, checkStraddle } from '$lib/dual-lift-calc/mode1';
   import GeometryMode1 from '$lib/dual-lift-calc/GeometryMode1.svelte';
   import ChartFvA from '$lib/dual-lift-calc/ChartFvA.svelte';
 
@@ -65,14 +65,46 @@
   // Derived calc inputs
   let a1_m = $derived(Math.abs(x_cog - x_lp1));
   let a2_m = $derived(Math.abs(x_cog - x_lp2));
-  // h = vertical drop from lift-point plane to COG (avg lift-point Y if they differ)
-  let y_lp_mean = $derived((y_lp1 + y_lp2) / 2);
-  let h_m = $derived(y_lp_mean - y_cog);
+  // h = vertical drop from the suspension AXIS to the COG, measured at x_cog.
+  //
+  // This was the mean of the two lug heights, which is only the same thing when
+  // the COG sits at lug midspan. With unequal lug heights and an eccentric COG
+  // the mean passes geometries whose COG is actually ABOVE the axis (the load
+  // rolls at lift-off) and refuses some that are stable. Interpolate the axis
+  // instead. x_lp1 != x_lp2 is guaranteed by the straddle check below.
+  let y_axis_at_cog = $derived(
+    x_lp2 === x_lp1
+      ? (y_lp1 + y_lp2) / 2
+      : y_lp1 + (y_lp2 - y_lp1) * (x_cog - x_lp1) / (x_lp2 - x_lp1)
+  );
+  let h_m = $derived(y_axis_at_cog - y_cog);
   let X_s1_m = $derived(Math.abs(x_cog - x_s1));
   let X_s2_m = $derived(Math.abs(x_cog - x_s2));
 
-  let dyn = $derived(computeDynamic({ M_kg, h_m, a1_m, a2_m, alpha_deg }));
-  let landing = $derived(computeLanding({ M_kg, a1_m, a2_m, X_s1_m, X_s2_m, h_m, alpha_deg }));
+  // Geometry gate. Three configurations are arithmetically defined but
+  // physically meaningless, and each one used to produce a plausible-looking
+  // number: a suspension plane at or below the CoG (allowance floored to 0%), a
+  // negative tolerance (same, by another route), and a lift point coincident
+  // with the CoG (Infinity / "NaN t"). Results are withheld with the reason
+  // shown, never clamped.
+  // a1/a2/X_s are magnitudes, so the side of the COG each point sits on is lost
+  // before checkGeometry can see it. Two lift points on the same side still give
+  // positive arms and a plausible split, but equilibrium then requires one crane
+  // to pull down. Straddle is checked here, where the x-coordinates still exist.
+  let geom_err = $derived(
+    checkStraddle(x_cog, x_lp1, x_lp2, 'lift points')
+    ?? checkStraddle(x_cog, x_s1, x_s2, 'landing supports')
+    ?? checkGeometry({ M_kg, a1_m, a2_m, alpha_deg, X_s1_m, X_s2_m, h_m })
+  );
+  let geom_ok = $derived(geom_err === null);
+
+  let stat = $derived(geom_ok ? computeStatic({ M_kg, a1_m, a2_m }) : null);
+  let dyn = $derived(geom_ok
+    ? computeDynamic({ M_kg, h_m, a1_m, a2_m, alpha_deg })
+    : null);
+  let landing = $derived(geom_ok
+    ? computeLanding({ M_kg, a1_m, a2_m, X_s1_m, X_s2_m, h_m, alpha_deg })
+    : null);
 
 
   // ─── AS 2550.1 §6.28.3 baseline + designed-lift state ────────────────────
@@ -94,18 +126,18 @@
   let k_async = $derived(K_ASYNC_BASELINE - credit_sum);
 
   // §6.28.3 baseline = static × 1.20 (applies to non-designed-lift, non-synchronised)
-  let F1_628_3_kg = $derived(dyn.F1_static_kg * K_ASYNC_BASELINE);
-  let F2_628_3_kg = $derived(dyn.F2_static_kg * K_ASYNC_BASELINE);
+  let F1_628_3_kg = $derived(stat ? stat.F1_kg * K_ASYNC_BASELINE : NaN);
+  let F2_628_3_kg = $derived(stat ? stat.F2_kg * K_ASYNC_BASELINE : NaN);
 
   // Per-crane geometric worst factor (from §3 scenarios) — F_scenario / F_static
   // Crane 1 worst geometric load comes from dynamic raise or landing-S2-first
   // Crane 2 worst geometric load comes from dynamic raise or landing-S1-first
-  let c1_g_factor = $derived(Math.max(
+  let c1_g_factor = $derived(!dyn || !landing ? NaN : Math.max(
     1.0,
     dyn.F1_max_kg / dyn.F1_static_kg,
     landing.S2_first.F1_prime_kg / dyn.F1_static_kg
   ));
-  let c2_g_factor = $derived(Math.max(
+  let c2_g_factor = $derived(!dyn || !landing ? NaN : Math.max(
     1.0,
     dyn.F2_max_kg / dyn.F2_static_kg,
     landing.S1_first.F2_prime_kg / dyn.F2_static_kg
@@ -117,8 +149,8 @@
   // controls but credit table claim is the engineer's documented basis).
   let c1_eng_factor = $derived(k_async + (c1_g_factor - 1));
   let c2_eng_factor = $derived(k_async + (c2_g_factor - 1));
-  let F1_DL_kg = $derived(dyn.F1_static_kg * c1_eng_factor);
-  let F2_DL_kg = $derived(dyn.F2_static_kg * c2_eng_factor);
+  let F1_DL_kg = $derived(stat ? stat.F1_kg * c1_eng_factor : NaN);
+  let F2_DL_kg = $derived(stat ? stat.F2_kg * c2_eng_factor : NaN);
 
   // Final governing — depends on designed-lift toggle
   let F1_governing_kg = $derived(designed_lift_ack ? F1_DL_kg : F1_628_3_kg);
@@ -167,7 +199,9 @@
         if (data.inputs.y_s1  != null) { y_s1  = data.inputs.y_s1;  manual.y_s1  = true; }
         if (data.inputs.x_s2  != null) { x_s2  = data.inputs.x_s2;  manual.x_s2  = true; }
         if (data.inputs.y_s2  != null) { y_s2  = data.inputs.y_s2;  manual.y_s2  = true; }
-        alpha_deg = data.inputs.alpha_deg ?? alpha_deg;
+        // The number input clamps 0-15; a loaded case must not bypass it.
+        const a = data.inputs.alpha_deg;
+        if (a != null && Number.isFinite(a)) alpha_deg = Math.min(15, Math.max(0, a));
       }
     } finally {
       sessionStorage.removeItem('dual-lift-case');
@@ -347,13 +381,13 @@
           <tbody>
             <tr>
               <td><var>F</var><sub>static</sub> &nbsp; <span class="muted">(lever rule)</span></td>
-              <td>{(dyn.F1_static_kg / 1000).toFixed(2)} t</td>
-              <td>{(dyn.F2_static_kg / 1000).toFixed(2)} t</td>
+              <td>{stat ? (stat.F1_kg / 1000).toFixed(2) + ' t' : '—'}</td>
+              <td>{stat ? (stat.F2_kg / 1000).toFixed(2) + ' t' : '—'}</td>
             </tr>
             <tr class="emph">
               <td>Compliance baseline &nbsp; <span class="muted">(× 1.20)</span></td>
-              <td>{(F1_628_3_kg / 1000).toFixed(2)} t</td>
-              <td>{(F2_628_3_kg / 1000).toFixed(2)} t</td>
+              <td>{stat ? (F1_628_3_kg / 1000).toFixed(2) + ' t' : '—'}</td>
+              <td>{stat ? (F2_628_3_kg / 1000).toFixed(2) + ' t' : '—'}</td>
             </tr>
           </tbody>
         </table>
@@ -368,6 +402,32 @@
     </div><!-- /.inputs-grid -->
   </section>
 
+
+  {#if geom_err}
+    <section class="card unstable-rig" role="alert">
+      <h2>
+        {geom_err.code === 'unstable_rigging' ? 'Unstable rigging' :
+         geom_err.code === 'invalid_tolerance' ? 'Inclination tolerance out of range' :
+         geom_err.code === 'invalid_mass' ? 'Load mass not valid' :
+         geom_err.code === 'invalid_support' ? 'Landing support position not valid' :
+         geom_err.code === 'lift_points_same_side' ? 'Load is not straddled' :
+         'Lift point coincides with the centre of gravity'} — results withheld
+      </h2>
+      <p>{geom_err.message}</p>
+      <p class="muted">
+        Sections 2 to 4 are withheld until the geometry is one this method can be
+        applied to. These configurations are arithmetically defined but physically
+        meaningless — a number here would look like an answer without being one.
+      </p>
+      {#if geom_err.code === 'invalid_tolerance'}
+        <!-- The α control lives in §2, which is withheld — without this the
+             user cannot reach the input that is causing the refusal. -->
+        <button class="btn-small" onclick={() => (alpha_deg = 2.5)}>
+          Reset α to 2.5°
+        </button>
+      {/if}
+    </section>
+  {:else if stat && dyn && landing}
   <!-- 2. GEOMETRY + CHART (α lives here — it directly drives the geometry tilt + the chart) -->
   <section class="card geometry-panel">
     <h2>2. Geometry</h2>
@@ -566,9 +626,19 @@
     {/if}
   </section>
 
+  {/if}
+
   <!-- 5. METHOD OF CALCULATION -->
   <section class="card">
     <h2>5. Method of calculation</h2>
+
+    {#if geom_err}
+      <p class="method-not-applicable">
+        The current geometry is not one this method applies to (see above). The
+        formulae below are shown for reference only — the derived values in them
+        are not a valid load assessment.
+      </p>
+    {/if}
 
     <div class="method-block">
       <div class="method-group">
@@ -576,7 +646,7 @@
         <span class="formula"><var>a</var><sub>1</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>lp1</sub>| = {a1_m.toFixed(2)} m</span>
         <span class="formula"><var>a</var><sub>2</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>lp2</sub>| = {a2_m.toFixed(2)} m</span>
         <span class="formula">span = <var>a</var><sub>1</sub> + <var>a</var><sub>2</sub> = {(a1_m + a2_m).toFixed(2)} m</span>
-        <span class="formula"><var>h</var> = <var>H</var> − <var>y</var><sub>cog</sub> = {h_m.toFixed(2)} m  (vertical drop from lift plane to COG)</span>
+        <span class="formula"><var>h</var> = <var>y</var><sub>axis</sub>(<var>x</var><sub>cog</sub>) − <var>y</var><sub>cog</sub> = {h_m.toFixed(2)} m  (drop from the suspension axis to the COG, at the COG)</span>
         <span class="formula"><var>X</var><sub>s1</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>s1</sub>| = {X_s1_m.toFixed(2)} m  ;  <var>X</var><sub>s2</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>s2</sub>| = {X_s2_m.toFixed(2)} m</span>
       </div>
 

@@ -1137,3 +1137,21 @@
   /* Disable hover transitions etc. */
   .dlc-app * { transition: none !important; }
 }
+
+/* Geometry-refusal alert — shown in place of sections 2-4 when the lift
+   geometry is one the method cannot be applied to. Scoped to .dlc-app so it
+   cannot leak into the rest of the site. */
+.dlc-app .unstable-rig {
+  border: 2px solid #c53030;
+  background: #fff5f5;
+}
+.dlc-app .unstable-rig h2 { color: #c53030; }
+.dlc-app .unstable-rig p { margin: 0.6rem 0; line-height: 1.55; }
+
+.dlc-app .method-not-applicable {
+  border-left: 3px solid #c53030;
+  background: #fff5f5;
+  padding: 0.6rem 0.9rem;
+  margin: 0 0 1rem;
+  color: #742a2a;
+}

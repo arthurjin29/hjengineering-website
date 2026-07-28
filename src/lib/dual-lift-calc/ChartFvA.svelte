@@ -1,25 +1,22 @@
 <!-- web/src/lib/components/ChartFvA.svelte -->
 <script lang="ts">
+  import { raiseFactors } from '$lib/dual-lift-calc/mode1';
+
   let { h_m, a1_m, a2_m, alpha_deg, alpha_max_deg = 15 }: {
     h_m: number; a1_m: number; a2_m: number; alpha_deg: number; alpha_max_deg?: number;
   } = $props();
 
   const W = 480, H = 220, P_L = 56, P_R = 22, P_T = 22, P_B = 38;
   const BASELINE_FACTOR = 1.20;  // AS 2550.1 §6.28.3 (a) — 2 cranes, non-synchronised
-  const DEG = Math.PI / 180;
 
-  // Factor curves: F_n_factor(α) = 1 + (h · tan α) / a_n
-  // Independent of M; depends only on geometry.
+  // Factor curves come from raiseFactors() in the calc module rather than being
+  // re-derived here. This component previously carried its own copy of
+  // 1 + (h·tan α)/a_n, which meant the geometry guards did not travel with it.
   let curve = $derived.by(() => {
     const pts: Array<{ a: number; f1: number; f2: number }> = [];
     for (let i = 0; i <= 50; i++) {
       const a = (i / 50) * alpha_max_deg;
-      const shift = h_m * Math.tan(a * DEG);
-      pts.push({
-        a,
-        f1: a2_m > 0 ? 1 + shift / a2_m : 1,
-        f2: a1_m > 0 ? 1 + shift / a1_m : 1
-      });
+      pts.push({ a, ...raiseFactors(h_m, a1_m, a2_m, a) });
     }
     return pts;
   });
@@ -36,9 +33,9 @@
   let path2 = $derived(curve.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.a)} ${y(p.f2)}`).join(' '));
 
   // Live marker at selected α
-  let marker_shift = $derived(h_m * Math.tan(alpha_deg * DEG));
-  let marker_f1 = $derived(a2_m > 0 ? 1 + marker_shift / a2_m : 1);
-  let marker_f2 = $derived(a1_m > 0 ? 1 + marker_shift / a1_m : 1);
+  let marker = $derived(raiseFactors(h_m, a1_m, a2_m, alpha_deg));
+  let marker_f1 = $derived(marker.f1);
+  let marker_f2 = $derived(marker.f2);
   let marker_x  = $derived(x(alpha_deg));
   let marker_y1 = $derived(y(marker_f1));
   let marker_y2 = $derived(y(marker_f2));
