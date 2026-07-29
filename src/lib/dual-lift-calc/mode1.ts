@@ -156,42 +156,42 @@ export class SameSideLiftPointsError extends LiftGeometryError {
 }
 
 /**
- * The lift geometry is not a stable suspension.
+ * `h` is outside the model's domain (must be greater than zero).
  *
- * `h` is the vertical drop from the lift-point (suspension) plane to the CoG.
- * A suspended load is stable only where that plane sits ABOVE the CoG. At
- * h <= 0 the load is not in equilibrium at the modelled attitude — it rotates
- * until the CoG hangs below the pivot — so the inclination tolerance alpha is
- * not a bounded quantity and no dynamic allowance can be derived from it.
+ * `h` is the height of the hook above the CoG — a property of the rigging, set
+ * by sling length and lift-point geometry. The tilt model swings the CoG by
+ * h*tan(alpha) about the suspension point, so it is meaningful only for h > 0.
  *
- * Must not be silently clamped. Before this guard the model returned
- * delta_geometric = 0 for these geometries (the max(1, .) floor absorbing the
- * negative shift) together with pct_rc above 100% — the most reassuring
- * possible output for the least safe geometry.
+ * This is a DOMAIN limit, not a stability verdict. This calculator does not
+ * assess rigging stability (see the scope note on the mode-1 page): two lift
+ * points per crane under a two-leg sling, with the hook above the CoG and the
+ * lugs below it, is an ordinary and perfectly stable arrangement — a basketed
+ * load, or a container taken from its bottom corners. `h` is measured to the
+ * hook, never to a lug, so such a rig gives h > 0 and computes normally.
  *
- * Provenance: this is the classical stability condition for a suspended rigid
- * body (the CoG must hang below the point of suspension for the equilibrium to
- * be stable) — first principles, not a clause. AS 2550.1, AS 4991 and ICSA N002
- * all assume a stable suspension without stating it as an equation, so no
- * clause can be cited for it.
+ * Must not be silently clamped. Without this check the model returned
+ * delta_geometric = 0 at h <= 0 (the max(1, .) floor absorbing a non-positive
+ * shift) together with pct_rc above 100%.
  */
-export class UnstableRiggingError extends LiftGeometryError {
-  readonly code = 'unstable_rigging';
+export class InvalidSuspensionHeightError extends LiftGeometryError {
+  readonly code = 'invalid_suspension_height';
   readonly h_m: unknown;
   constructor(h_m: unknown) {
     super(
-      `Lift points are ${h_m === 0 ? 'level with' : 'below'} the centre of gravity ` +
-      `(h = ${fmt(h_m)} m). The suspension point is at or below the CoG, so the ` +
-      `rig is unstable and this method does not apply. Raise the lift points above ` +
-      `the CoG, or rig to a spreader/apex above it, and re-check.`
+      `Hook-to-CoG height must be greater than zero (h = ${fmt(h_m)} m). ` +
+      `h is measured from the hook down to the centre of gravity — a rigging ` +
+      `property, not a lug elevation. The tilt model swings the CoG about the ` +
+      `suspension point, so it has no meaning at h <= 0. This is a limit of the ` +
+      `calculation, not a judgement about rigging stability, which is outside ` +
+      `this tool.`
     );
-    this.name = 'UnstableRiggingError';
+    this.name = 'InvalidSuspensionHeightError';
     this.h_m = h_m;
   }
 }
 
-/** True where the suspension plane sits above the CoG. */
-export function isRiggingStable(h_m: unknown): boolean {
+/** True where the hook sits above the CoG — the model's domain for h. */
+export function isSuspensionHeightValid(h_m: unknown): boolean {
   return typeof h_m === 'number' && Number.isFinite(h_m) && h_m > 0;
 }
 
@@ -233,8 +233,8 @@ export function checkGeometry(g: {
       return new InvalidSupportError(s1, s2);
     }
   }
-  if (g.h_m !== undefined && !isRiggingStable(g.h_m)) {
-    return new UnstableRiggingError(g.h_m);
+  if (g.h_m !== undefined && !isSuspensionHeightValid(g.h_m)) {
+    return new InvalidSuspensionHeightError(g.h_m);
   }
   return null;
 }

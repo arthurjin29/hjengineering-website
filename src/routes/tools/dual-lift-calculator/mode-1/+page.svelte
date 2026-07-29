@@ -43,6 +43,7 @@
   // Auto-resync y-coordinates on H change
   $effect(() => {
     H_m;
+    if (!manual_h) h_m = Math.max(H_m / 2, 0.1);
     if (!manual.y_cog) y_cog = H_m / 2;
     if (!manual.y_lp1) y_lp1 = H_m;
     if (!manual.y_lp2) y_lp2 = H_m;
@@ -61,23 +62,21 @@
 
   // Inclination tolerance
   let alpha_deg = $state(2.5);
+  let manual_h = $state(false);
 
   // Derived calc inputs
   let a1_m = $derived(Math.abs(x_cog - x_lp1));
   let a2_m = $derived(Math.abs(x_cog - x_lp2));
-  // h = vertical drop from the suspension AXIS to the COG, measured at x_cog.
+  // h = height of the HOOK above the COG. A rigging property -- sling length and
+  // lift-point geometry -- so it is entered, not derived from the lug positions.
   //
-  // This was the mean of the two lug heights, which is only the same thing when
-  // the COG sits at lug midspan. With unequal lug heights and an eccentric COG
-  // the mean passes geometries whose COG is actually ABOVE the axis (the load
-  // rolls at lift-off) and refuses some that are stable. Interpolate the axis
-  // instead. x_lp1 != x_lp2 is guaranteed by the straddle check below.
-  let y_axis_at_cog = $derived(
-    x_lp2 === x_lp1
-      ? (y_lp1 + y_lp2) / 2
-      : y_lp1 + (y_lp2 - y_lp1) * (x_cog - x_lp1) / (x_lp2 - x_lp1)
-  );
-  let h_m = $derived(y_axis_at_cog - y_cog);
+  // It was previously derived from the lug Y coordinates, which is the wrong
+  // quantity for the usual arrangement: two lift points per crane under a
+  // two-leg sling, hook above the COG, lugs possibly BELOW it (basketed loads,
+  // containers taken from the bottom corners). Those rigs are perfectly stable
+  // and the lug elevation says nothing about h. The lug Y inputs now feed the
+  // geometry drawing only.
+  let h_m = $state(1.0);
   let X_s1_m = $derived(Math.abs(x_cog - x_s1));
   let X_s2_m = $derived(Math.abs(x_cog - x_s2));
 
@@ -212,6 +211,24 @@
 <div class="mode-stack">
 
   <!-- 1. INPUTS -->
+  <section class="card scope-note">
+    <p>
+      <strong>Scope.</strong> This tool computes <strong>load share</strong> between
+      two cranes. It does <strong>not</strong> assess rigging stability, sling or
+      lift-point design. A typical arrangement has two lift points per crane under a
+      two-leg sling: the hook sits above the centre of gravity and the lugs may sit
+      below it — a basketed load, or a container taken from its bottom corners — and
+      that is stable and ordinary. Stability, sling design and lift-point adequacy
+      remain the rigging engineer's.
+    </p>
+    <p class="muted">
+      Enter <var>a</var><sub>1</sub>, <var>a</var><sub>2</sub> and <var>h</var> at each
+      crane's <strong>effective suspension point</strong> — the bridle apex where a
+      crane is bridled to two lugs, not either lug. <var>h</var> is the height of the
+      hook above the COG.
+    </p>
+  </section>
+
   <section class="card">
     <h2>1. Inputs</h2>
 
@@ -275,8 +292,23 @@
 
     <div class="input-section">
       <div class="input-section-header">
+        <p class="label" style="margin: 0;">Rigging</p>
+      </div>
+      <div class="input-row cols-4">
+        <label class="field">
+          <span class="field-name">
+            <var>h</var> [m]
+            {#if !manual_h}<span class="auto-badge">auto</span>{/if}
+          </span>
+          <input type="number" step="0.1" bind:value={h_m}
+                 oninput={() => manual_h = true} />
+          <span class="field-help">Height of the HOOK above the COG — sling length and lift-point geometry. Not a lug elevation: lugs may sit below the COG.</span>
+        </label>
+      </div>
+
+      <div class="input-section-header">
         <p class="label" style="margin: 0;">Lift points (Crane 1 &amp; Crane 2)</p>
-        <span class="auto-hint">default to load top corners</span>
+        <span class="auto-hint">effective suspension point per crane</span>
       </div>
       <div class="input-row cols-4">
         <label class="field">
@@ -406,7 +438,7 @@
   {#if geom_err}
     <section class="card unstable-rig" role="alert">
       <h2>
-        {geom_err.code === 'unstable_rigging' ? 'Unstable rigging' :
+        {geom_err.code === 'invalid_suspension_height' ? 'Hook-to-CoG height out of range' :
          geom_err.code === 'invalid_tolerance' ? 'Inclination tolerance out of range' :
          geom_err.code === 'invalid_mass' ? 'Load mass not valid' :
          geom_err.code === 'invalid_support' ? 'Landing support position not valid' :
@@ -646,7 +678,7 @@
         <span class="formula"><var>a</var><sub>1</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>lp1</sub>| = {a1_m.toFixed(2)} m</span>
         <span class="formula"><var>a</var><sub>2</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>lp2</sub>| = {a2_m.toFixed(2)} m</span>
         <span class="formula">span = <var>a</var><sub>1</sub> + <var>a</var><sub>2</sub> = {(a1_m + a2_m).toFixed(2)} m</span>
-        <span class="formula"><var>h</var> = <var>y</var><sub>axis</sub>(<var>x</var><sub>cog</sub>) − <var>y</var><sub>cog</sub> = {h_m.toFixed(2)} m  (drop from the suspension axis to the COG, at the COG)</span>
+        <span class="formula"><var>h</var> = {h_m.toFixed(2)} m  (entered — height of the hook above the COG; a rigging property, not a lug elevation)</span>
         <span class="formula"><var>X</var><sub>s1</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>s1</sub>| = {X_s1_m.toFixed(2)} m  ;  <var>X</var><sub>s2</sub> = |<var>x</var><sub>cog</sub> − <var>x</var><sub>s2</sub>| = {X_s2_m.toFixed(2)} m</span>
       </div>
 
