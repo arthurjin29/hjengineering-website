@@ -428,8 +428,9 @@
         </table>
         <p class="baseline-note">
           For two cranes where motions are not synchronised, each crane shall be sized for
-          <strong>20 % greater than the calculated share</strong>. This is the compliance default
-          unless a documented designed lift is applied — see §4. Clause provenance in §6 References.
+          <strong>20 % greater than the calculated share</strong>. This is a minimum, not the answer: the governing load exceeds it where the
+          geometry computes higher, and may fall below it under a documented designed
+          lift — see §4. Clause provenance in §6 References.
         </p>
       </div>
     </div><!-- /.baseline-col -->
@@ -565,8 +566,8 @@
         </span>
       </label>
       <p class="baseline-note">
-        Off → governing per crane uses the compliance baseline from §1 (<var>F</var><sub>static</sub> × 1.20).
-        On → the engineering lift below replaces the baseline.
+        Off → generic: governing is max(×1.20, computed), so the §6.28.3 minimum is never undercut.
+        On → certified engineered lift: the computed factor governs and may sit below ×1.20.
         Clause provenance in §6 References.
       </p>
     </div>
