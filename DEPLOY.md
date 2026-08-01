@@ -55,6 +55,39 @@ Vercel KV variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) are auto-injected w
    # Set "admins": ["arthur@hjengineering.com.au"]
    ```
 
+## 4a. Heavy Lift Pipeline Map
+
+The gated map at `/tools/pipeline-map` reads its HTML from the same KV store
+as the whitelist. **The map data is never committed to this repository** —
+this repo is public, so a login on the route would do nothing for a file
+anyone can read on GitHub. Publishing is therefore a two-step process, and
+neither step touches git.
+
+1. Generate the BD-stripped map in the heavy-lift-pipeline project:
+   ```bash
+   .venv\Scripts\python.exe build.py --publish
+   ```
+   This refuses to write anything if its leak audit fails, and records the
+   SHA-256 of what it wrote in `pipeline-map.meta.json`.
+
+2. Upload it:
+   ```bash
+   vercel env pull .env.local     # once, for KV credentials
+   npm run upload:pipeline-map
+   ```
+   The upload re-checks the file against that hash, so a file edited after
+   the audit — or a sidecar from a different build — is rejected.
+
+KV keys used: `pipeline-map:html`, `pipeline-map:meta`.
+
+Access is the existing Google sign-in plus the KV whitelist, re-checked on
+every request rather than only at sign-in (sessions are one-hour JWTs, so a
+removal would otherwise stay live until the token expired). Grant or revoke
+at `/admin/whitelist`.
+
+Re-run both steps whenever the dataset changes — the map is a snapshot, not
+a live view.
+
 ## 5. Preview Deploy
 
 ```bash
