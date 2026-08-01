@@ -2,4 +2,5 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /auth/
+Disallow: /tools/pipeline-map
 Sitemap: https://hjengineering.com.au/sitemap.xml

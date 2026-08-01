@@ -13,7 +13,8 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"upload:pipeline-map": "node scripts/upload-pipeline-map.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",
