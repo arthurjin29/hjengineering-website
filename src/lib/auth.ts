@@ -1,7 +1,7 @@
 import { SvelteKitAuth } from '@auth/sveltekit';
 import Google from '@auth/sveltekit/providers/google';
 import { env } from '$env/dynamic/private';
-import { isWhitelisted } from '$lib/server/whitelist';
+import { isWhitelisted, requestAccess } from '$lib/server/whitelist';
 
 export const { handle, signIn, signOut } = SvelteKitAuth({
 	providers: [
@@ -18,7 +18,13 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 	callbacks: {
 		async signIn({ user }) {
 			if (!user.email) return false;
-			return await isWhitelisted(user.email);
+			if (await isWhitelisted(user.email)) return true;
+
+			// Not approved yet. Record the attempt and send them somewhere
+			// that says so, rather than returning false — which produces a
+			// bare AccessDenied error and leaves no trace that anyone asked.
+			await requestAccess(user.email, user.name);
+			return '/access-requested';
 		}
 	},
 	pages: {

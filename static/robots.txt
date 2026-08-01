@@ -3,4 +3,5 @@ Allow: /
 Disallow: /admin/
 Disallow: /auth/
 Disallow: /tools/pipeline-map
+Disallow: /access-requested
 Sitemap: https://hjengineering.com.au/sitemap.xml

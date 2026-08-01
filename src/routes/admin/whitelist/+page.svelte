@@ -27,6 +27,61 @@
 			</div>
 		{/if}
 
+		<!-- Pending access requests. Shown above the whitelist because this is
+		     the part that needs a decision; the list below is just state. -->
+		{#if data.pending.length > 0}
+			<div class="mb-8 rounded-lg border border-amber-300 bg-amber-50">
+				<div class="border-b border-amber-300 px-4 py-3">
+					<h2 class="font-semibold text-amber-900">
+						{data.pending.length} pending access {data.pending.length === 1
+							? 'request'
+							: 'requests'}
+					</h2>
+					<p class="mt-1 text-xs text-amber-800">
+						These people signed in with Google and are waiting on you. Approving adds them to the
+						whitelist below.
+					</p>
+				</div>
+				<table class="w-full text-sm">
+					<tbody>
+						{#each data.pending as req}
+							<tr class="border-b border-amber-200 last:border-b-0">
+								<td class="px-4 py-3">
+									<span class="font-mono text-text-body">{req.email}</span>
+									{#if req.name}
+										<span class="ml-2 text-text-muted">{req.name}</span>
+									{/if}
+									<div class="text-xs text-text-muted">
+										requested {new Date(req.requestedAt).toLocaleDateString()}
+									</div>
+								</td>
+								<td class="px-4 py-3 text-right whitespace-nowrap">
+									<form method="POST" action="?/approve" use:enhance class="inline">
+										<input type="hidden" name="email" value={req.email} />
+										<button
+											type="submit"
+											class="rounded-md bg-primary-text px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+										>
+											Approve
+										</button>
+									</form>
+									<form method="POST" action="?/deny" use:enhance class="ml-2 inline">
+										<input type="hidden" name="email" value={req.email} />
+										<button
+											type="submit"
+											class="text-sm text-red-600 transition-colors hover:text-red-800"
+										>
+											Dismiss
+										</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+
 		<!-- Add email -->
 		<form method="POST" action="?/add" use:enhance class="mb-8 flex gap-3">
 			<input
