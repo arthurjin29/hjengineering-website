@@ -29,7 +29,12 @@ const securityHandle: Handle = async ({ event, resolve }) => {
 		"default-src 'self'",
 		"script-src 'self' 'unsafe-inline' https://*.vercel-analytics.com https://*.vercel-scripts.com https://*.sentry.io",
 		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob: https://*.tile.openstreetmap.org",
+		// Tile hosts for the map tools. CARTO serves the dark basemap and Esri
+		// the satellite layer used by the pipeline map — satellite view is the
+		// one that shows site access, so it earns its place. Image sources
+		// only: no script, connect or frame permission is widened here.
+		"img-src 'self' data: blob: https://*.tile.openstreetmap.org " +
+			"https://*.basemaps.cartocdn.com https://server.arcgisonline.com",
 		"font-src 'self'",
 		"connect-src 'self' https://*.vercel-analytics.com https://*.sentry.io",
 		"frame-src https://accounts.google.com",
