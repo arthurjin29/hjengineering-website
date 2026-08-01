@@ -4,6 +4,7 @@
   import { computeStatic, computeDynamic, computeLanding, checkGeometry, checkStraddle } from '$lib/dual-lift-calc/mode1';
   import GeometryMode1 from '$lib/dual-lift-calc/GeometryMode1.svelte';
   import ChartFvA from '$lib/dual-lift-calc/ChartFvA.svelte';
+  import { governingLoad, governingBasis } from '$lib/dual-lift-calc/governing';
 
   // Load (primary inputs — drive defaults for everything below)
   let M_kg = $state(50000);
@@ -151,9 +152,11 @@
   let F1_DL_kg = $derived(stat ? stat.F1_kg * c1_eng_factor : NaN);
   let F2_DL_kg = $derived(stat ? stat.F2_kg * c2_eng_factor : NaN);
 
-  // Final governing — depends on designed-lift toggle
-  let F1_governing_kg = $derived(designed_lift_ack ? F1_DL_kg : F1_628_3_kg);
-  let F2_governing_kg = $derived(designed_lift_ack ? F2_DL_kg : F2_628_3_kg);
+  // Two rules: generic = max(x1.20, computed) so the s6.28.3 minimum is never
+  // undercut; certified engineered lift = the computed factor, which may sit
+  // below it. See $lib/dual-lift-calc/governing.ts.
+  let F1_governing_kg = $derived(governingLoad(F1_628_3_kg, F1_DL_kg, designed_lift_ack));
+  let F2_governing_kg = $derived(governingLoad(F2_628_3_kg, F2_DL_kg, designed_lift_ack));
 
 
   function saveCase() {
@@ -617,6 +620,8 @@
           engineer's documented basis for the claim.
         </p>
       </div>
+    {/if}
+
 
       <table class="results-table">
         <thead>
@@ -649,13 +654,15 @@
             </td>
           </tr>
           <tr class="divider governing">
-            <td>Governing per crane</td>
+            <td>
+              Governing per crane
+              <div class="sub-detail">{governingBasis(designed_lift_ack)}</div>
+            </td>
             <td><strong>{(F1_governing_kg / 1000).toFixed(2)} t</strong></td>
             <td><strong>{(F2_governing_kg / 1000).toFixed(2)} t</strong></td>
           </tr>
         </tbody>
       </table>
-    {/if}
   </section>
 
   {/if}
