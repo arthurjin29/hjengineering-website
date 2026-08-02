@@ -48,6 +48,7 @@
 		"@auth/sveltekit": "^1.11.1",
 		"@sentry/sveltekit": "^10.47.0",
 		"@vercel/kv": "^3.0.0",
+		"redis": "^6.2.0",
 		"resend": "^6.10.0",
 		"three": "^0.183.2"
 	}

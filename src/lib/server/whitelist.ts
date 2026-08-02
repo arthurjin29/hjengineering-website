@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/private';
+import { getRedis } from './redis';
 
 // In production, uses Vercel KV. In dev without KV, falls back to in-memory Set.
 let memoryWhitelist: Set<string> | null = null;
@@ -12,16 +13,16 @@ function getInitialWhitelist(): Set<string> {
 	return new Set(['arthur@hjengineering.com.au']);
 }
 
+// Kept named `getKv` so every call site reads unchanged; the store behind it
+// is now Redis Cloud over the wire protocol rather than the KV REST API.
 async function getKv() {
-	if (!env.KV_REST_API_URL || !env.KV_REST_API_TOKEN) return null;
-	const { kv } = await import('@vercel/kv');
-	return kv;
+	return await getRedis();
 }
 
 export async function isWhitelisted(email: string): Promise<boolean> {
 	const store = await getKv();
 	if (store) {
-		return (await store.sismember('whitelist', email.toLowerCase())) === 1;
+		return Boolean(await store.sIsMember('whitelist', email.toLowerCase()));
 	}
 	if (!memoryWhitelist) memoryWhitelist = getInitialWhitelist();
 	return memoryWhitelist.has(email.toLowerCase());
@@ -30,7 +31,7 @@ export async function isWhitelisted(email: string): Promise<boolean> {
 export async function isAdmin(email: string): Promise<boolean> {
 	const store = await getKv();
 	if (store) {
-		return (await store.sismember('admins', email.toLowerCase())) === 1;
+		return Boolean(await store.sIsMember('admins', email.toLowerCase()));
 	}
 	if (!memoryAdmins) memoryAdmins = getInitialAdmins();
 	return memoryAdmins.has(email.toLowerCase());
@@ -39,7 +40,7 @@ export async function isAdmin(email: string): Promise<boolean> {
 export async function getWhitelist(): Promise<string[]> {
 	const store = await getKv();
 	if (store) {
-		return await store.smembers('whitelist');
+		return await store.sMembers('whitelist');
 	}
 	if (!memoryWhitelist) memoryWhitelist = getInitialWhitelist();
 	return [...memoryWhitelist];
@@ -48,7 +49,7 @@ export async function getWhitelist(): Promise<string[]> {
 export async function addToWhitelist(email: string): Promise<void> {
 	const store = await getKv();
 	if (store) {
-		await store.sadd('whitelist', email.toLowerCase());
+		await store.sAdd('whitelist', email.toLowerCase());
 		return;
 	}
 	if (!memoryWhitelist) memoryWhitelist = getInitialWhitelist();
@@ -58,7 +59,7 @@ export async function addToWhitelist(email: string): Promise<void> {
 export async function removeFromWhitelist(email: string): Promise<void> {
 	const store = await getKv();
 	if (store) {
-		await store.srem('whitelist', email.toLowerCase());
+		await store.sRem('whitelist', email.toLowerCase());
 		return;
 	}
 	if (!memoryWhitelist) memoryWhitelist = getInitialWhitelist();
@@ -114,9 +115,9 @@ export async function requestAccess(email: string, name?: string | null): Promis
 	if (store) {
 		// Re-requesting must not refresh the timestamp: the age of the
 		// oldest attempt is what says how long someone has been waiting.
-		if (await store.hget(PENDING, key)) return;
-		if ((await store.hlen(PENDING)) >= MAX_PENDING) return;
-		await store.hset(PENDING, { [key]: entry });
+		if (await store.hGet(PENDING, key)) return;
+		if ((await store.hLen(PENDING)) >= MAX_PENDING) return;
+		await store.hSet(PENDING, key, JSON.stringify(entry));
 		return;
 	}
 	const mem = pendingMemory();
@@ -126,8 +127,8 @@ export async function requestAccess(email: string, name?: string | null): Promis
 
 export async function getPendingRequests(): Promise<AccessRequest[]> {
 	const store = await getKv();
-	const entries = store
-		? Object.values((await store.hgetall<Record<string, AccessRequest>>(PENDING)) ?? {})
+	const entries: AccessRequest[] = store
+		? Object.values((await store.hGetAll(PENDING)) ?? {}).map((v) => JSON.parse(v) as AccessRequest)
 		: [...pendingMemory().values()];
 	// Oldest first — the person who has waited longest is the one to action.
 	return entries.sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
@@ -137,7 +138,7 @@ export async function clearRequest(email: string): Promise<void> {
 	const key = email.toLowerCase();
 	const store = await getKv();
 	if (store) {
-		await store.hdel(PENDING, key);
+		await store.hDel(PENDING, key);
 		return;
 	}
 	pendingMemory().delete(key);

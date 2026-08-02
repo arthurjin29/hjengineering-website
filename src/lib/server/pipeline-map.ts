@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/private';
+import { getRedis } from './redis';
 
 /**
  * Storage for the heavy-lift pipeline map.
@@ -27,20 +27,19 @@ export interface PipelineMapMeta {
 }
 
 async function getKv() {
-	if (!env.KV_REST_API_URL || !env.KV_REST_API_TOKEN) return null;
-	const { kv } = await import('@vercel/kv');
-	return kv;
+	return await getRedis();
 }
 
 /** The published map HTML, or null when nothing has been uploaded yet. */
 export async function getPipelineMap(): Promise<string | null> {
 	const store = await getKv();
 	if (!store) return null;
-	return await store.get<string>(MAP_KEY);
+	return await store.get(MAP_KEY);
 }
 
 export async function getPipelineMapMeta(): Promise<PipelineMapMeta | null> {
 	const store = await getKv();
 	if (!store) return null;
-	return await store.get<PipelineMapMeta>(MAP_META_KEY);
+	const raw = await store.get(MAP_META_KEY);
+	return raw ? (JSON.parse(raw) as PipelineMapMeta) : null;
 }

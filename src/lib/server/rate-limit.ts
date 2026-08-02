@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/private';
+import { getRedis } from './redis';
 
 const WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS = 5;
@@ -9,12 +9,14 @@ const memoryStore = new Map<string, { count: number; resetAt: number }>();
 export async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remaining: number }> {
 	const key = `rate:contact:${ip}`;
 
-	// Try Vercel KV in production
-	if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
-		const { kv } = await import('@vercel/kv');
-		const current = await kv.incr(key);
+	// Shared store in production, so the limit holds across serverless
+	// instances. On the in-memory fallback each instance counts separately,
+	// so the effective limit is multiplied by however many are warm.
+	const store = await getRedis();
+	if (store) {
+		const current = await store.incr(key);
 		if (current === 1) {
-			await kv.pexpire(key, WINDOW_MS);
+			await store.pExpire(key, WINDOW_MS);
 		}
 		const remaining = Math.max(0, MAX_REQUESTS - current);
 		return { allowed: current <= MAX_REQUESTS, remaining };

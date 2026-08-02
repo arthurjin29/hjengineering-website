@@ -1,5 +1,5 @@
 /**
- * Upload the published heavy-lift pipeline map into Vercel KV.
+ * Upload the published heavy-lift pipeline map into the project's Redis store.
  *
  * The map is business-development material and this repository is public, so
  * the file is deliberately never committed here. It is generated in the
@@ -9,12 +9,12 @@
  *
  *   node scripts/upload-pipeline-map.mjs [path-to-pipeline-map.html]
  *
- * Requires KV_REST_API_URL and KV_REST_API_TOKEN. Get them with:
+ * Requires REDIS_URL. Get it with:
  *   npx vercel link && npx vercel env pull .env.local
  */
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { createClient } from '@vercel/kv';
+import { createClient } from 'redis';
 
 const DEFAULT_SOURCE = 'D:/heavy-lift-pipeline/dist/public/pipeline-map.html';
 const MAP_KEY = 'pipeline-map:html';
@@ -38,12 +38,10 @@ async function main() {
 		// Fine — the variables may already be in the environment.
 	}
 
-	const url = process.env.KV_REST_API_URL;
-	const token = process.env.KV_REST_API_TOKEN;
-	if (!url || !token) {
+	const url = process.env.REDIS_URL;
+	if (!url) {
 		console.error(
-			'KV_REST_API_URL and KV_REST_API_TOKEN are not set.\n' +
-				'Run:  npx vercel link && npx vercel env pull .env.local'
+			'REDIS_URL is not set. Run:  npx vercel link && npx vercel env pull .env.local'
 		);
 		process.exit(1);
 	}
@@ -85,19 +83,29 @@ async function main() {
 		process.exit(1);
 	}
 
-	const kv = createClient({ url, token });
-	await kv.set(MAP_KEY, html);
-	await kv.set(MAP_META_KEY, {
-		published: meta.published,
-		projects: meta.projects,
-		withheld: meta.withheld
-	});
+	const kv = createClient({ url });
+	kv.on('error', (e) => console.error('redis:', e?.message ?? e));
+	await kv.connect();
 
+	await kv.set(MAP_KEY, html);
+	await kv.set(
+		MAP_META_KEY,
+		JSON.stringify({
+			published: meta.published,
+			projects: meta.projects,
+			withheld: meta.withheld
+		})
+	);
+
+	// Read back rather than trusting the write: a silent truncation would
+	// otherwise surface as a half-rendered map for whoever opens it next.
 	const readback = await kv.get(MAP_KEY);
 	if (readback !== html) {
 		console.error('UPLOAD FAILED — the value read back does not match what was sent.');
+		await kv.quit();
 		process.exit(1);
 	}
+	await kv.quit();
 
 	console.log(`uploaded ${source}`);
 	console.log(`  ${html.length} bytes, ${projects} projects — read-back verified`);
