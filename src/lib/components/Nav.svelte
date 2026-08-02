@@ -1,4 +1,11 @@
 <script lang="ts">
+	import type { Session } from '@auth/sveltekit';
+
+	// Only used to decide whether the internal tools are listed. The gated
+	// routes enforce access themselves, so this is discoverability, not a
+	// security boundary — someone typing the URL is stopped server-side.
+	let { session = null }: { session?: Session | null } = $props();
+
 	let mobileOpen = $state(false);
 	let toolsOpen = $state(false);
 
@@ -77,6 +84,23 @@
 								<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 							</svg>
 						</a>
+						{#if session}
+							<div class="my-2 border-t border-border"></div>
+							<p class="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
+								Internal
+							</p>
+							<a
+								href="/tools/pipeline-map"
+								class="flex items-center gap-2 px-4 py-2 text-sm text-text-body transition-colors hover:bg-bg-subtle hover:text-text-dark"
+								onclick={closeTools}
+							>
+								Heavy Lift Pipeline
+								<svg class="h-3.5 w-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
+								</svg>
+							</a>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -129,6 +153,15 @@
 					<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 				</svg>
 			</a>
+			{#if session}
+				<a href="/tools/pipeline-map" class="flex items-center gap-2 rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>
+					Heavy Lift Pipeline
+					<svg class="h-3.5 w-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+						<path d="M7 11V7a5 5 0 0 1 10 0v4" />
+					</svg>
+				</a>
+			{/if}
 			<a href="/resources" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Resources</a>
 			<a href="/about" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>About</a>
 			<a href="/blog" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Blog</a>
