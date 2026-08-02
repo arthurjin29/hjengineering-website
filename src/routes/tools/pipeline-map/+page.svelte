@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head>
-	<title>Heavy Lift Pipeline Map — HJ Engineering</title>
+	<title>SE Australian Sustainable AI Construction — HJ Engineering</title>
 	<!-- Gated content: never index it, and never follow through to the map. -->
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
@@ -13,7 +13,7 @@
 <!-- Hero -->
 <section class="bg-gradient-to-b from-bg-dark to-bg-card-dark px-8 py-16 text-center text-text-light">
 	<p class="mb-2 text-xs uppercase tracking-[2px] text-primary">Internal Tools</p>
-	<h1 class="mx-auto mb-3 max-w-xl text-3xl font-bold">Heavy Lift Pipeline Map</h1>
+	<h1 class="mx-auto mb-3 max-w-xl text-3xl font-bold">SE Australian Sustainable AI Construction</h1>
 	<p class="mx-auto max-w-lg text-sm leading-relaxed text-text-faint">
 		Wind, transmission, BESS and data-centre projects across south-east Australia —
 		what is being built, where, and at what stage.
