@@ -27,8 +27,11 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 			return '/access-requested';
 		}
 	},
-	pages: {
-		signIn: '/auth/signin'
-	},
+	// No `pages.signIn` override. `/auth/signin` is Auth.js's *own* built-in
+	// sign-in page (basePath `/auth` + `/signin`), so naming it here declared
+	// a custom page at the very path Auth.js already serves: the handler
+	// redirected to the configured page, which was itself, and the browser
+	// bounced until it gave up. Routes still redirect to `/auth/signin` —
+	// that path is correct, it just must not be re-declared as custom.
 	trustHost: true
 });
