@@ -37,12 +37,35 @@ Vercel KV variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) are auto-injected w
 2. Create a project (or use existing)
 3. APIs & Services → Credentials → Create OAuth 2.0 Client ID
 4. Application type: Web application
-5. Authorized redirect URIs:
-   - `https://hjengineering.com.au/auth/callback/google`
+5. Authorized redirect URIs — these must match the served domain **exactly**,
+   including the `www`. Production resolves to `www.hjengineering.com.au`, so
+   the apex-domain form alone fails with a redirect-URI mismatch and sign-in
+   dies at Google before it ever reaches this app:
+   - `https://www.hjengineering.com.au/auth/callback/google`
+   - `https://hjengineering.com.au/auth/callback/google` (harmless to add, and
+     covers the apex if the domain config ever changes)
    - `https://<your-vercel-preview-url>/auth/callback/google` (for preview deploys)
-6. Copy Client ID and Secret to Vercel env vars
+6. Copy Client ID and Secret to Vercel env vars:
+   ```bash
+   vercel env add AUTH_GOOGLE_ID production
+   vercel env add AUTH_GOOGLE_SECRET production
+   ```
+   Repeat for `preview` and `development` if you want sign-in to work there too.
+
+> **Auth is all-or-nothing.** `hooks.server.ts` only mounts Auth.js when
+> `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and `AUTH_SECRET` are all present.
+> With any of them missing the auth handler never loads, `/auth/signin`
+> returns 404, and every gated route redirects into that 404 — which looks
+> like a broken link rather than a missing configuration. If sign-in
+> "disappears", check these three first.
 
 ## 4. Vercel KV (Whitelist Store)
+
+> **Not optional if you want access control to work.** Without KV,
+> `whitelist.ts` silently falls back to an in-memory set that resets on every
+> cold start and only ever contains the hard-coded seed address. Approvals
+> made through `/admin/whitelist` — and any pending access requests — are
+> discarded without an error. Nothing warns you; it simply forgets.
 
 1. Vercel Dashboard → Storage → Create KV Store
 2. Link to this project
