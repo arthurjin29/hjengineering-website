@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isWhitelisted } from '$lib/server/whitelist';
 import { getPipelineMap } from '$lib/server/pipeline-map';
+import { authConfigured, AUTH_NOT_CONFIGURED } from '$lib/server/auth-config';
 
 /**
  * Serves the pipeline map as a full HTML document.
@@ -29,6 +30,10 @@ a{color:#7fb2ff}</style></head>
 }
 
 export const GET: RequestHandler = async (event) => {
+	if (!authConfigured()) {
+		return deny(503, 'Sign-in not configured', AUTH_NOT_CONFIGURED);
+	}
+
 	const session = await event.locals.auth?.();
 	if (!session?.user?.email) {
 		redirect(303, '/auth/signin');

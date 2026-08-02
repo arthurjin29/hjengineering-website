@@ -9,8 +9,13 @@ import {
 	approveRequest,
 	clearRequest
 } from '$lib/server/whitelist';
+import { authConfigured, AUTH_NOT_CONFIGURED } from '$lib/server/auth-config';
 
 export const load: PageServerLoad = async (event) => {
+	if (!authConfigured()) {
+		error(503, AUTH_NOT_CONFIGURED);
+	}
+
 	const session = await event.locals.auth?.();
 	if (!session?.user?.email) {
 		redirect(303, '/auth/signin');
