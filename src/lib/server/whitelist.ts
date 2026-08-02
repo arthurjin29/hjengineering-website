@@ -148,3 +148,49 @@ export async function approveRequest(email: string): Promise<void> {
 	await addToWhitelist(email);
 	await clearRequest(email);
 }
+
+/**
+ * Domains whose Google accounts are admitted without individual approval.
+ *
+ * Configurable rather than hard-coded so a domain can be added or — more
+ * importantly — *removed* without a code change and deploy. Revoking access
+ * for a whole company is exactly the moment you do not want to be waiting on
+ * a build.
+ *
+ * Defaults to the two companies this site is operated across, so the feature
+ * works if the variable is never set.
+ */
+const DEFAULT_ALLOWED_DOMAINS = ['hjengineering.com.au', 'premiercranes.com.au'];
+
+export function allowedDomains(): string[] {
+	const raw = env.AUTH_ALLOWED_DOMAINS;
+	if (!raw) return DEFAULT_ALLOWED_DOMAINS;
+	return raw
+		.split(',')
+		.map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+		.filter(Boolean);
+}
+
+/**
+ * Whether a verified Google identity belongs to an auto-admitted domain.
+ *
+ * `verifiedDomain` is Google's `hd` (hosted domain) claim, which is only
+ * present on Workspace accounts and is asserted by Google rather than parsed
+ * by us. Preferring it over the text after the `@` matters: the claim cannot
+ * be set by a personal account choosing a convincing address.
+ *
+ * Falling back to the email suffix covers domains not on Workspace, but only
+ * when Google has verified the address — an unverified email proves nothing
+ * about who controls the domain.
+ */
+export function isAllowedDomain(
+	email: string,
+	verifiedDomain?: string | null,
+	emailVerified = false
+): boolean {
+	const domains = allowedDomains();
+	if (verifiedDomain) return domains.includes(verifiedDomain.toLowerCase());
+	if (!emailVerified) return false;
+	const suffix = email.toLowerCase().split('@')[1];
+	return Boolean(suffix) && domains.includes(suffix);
+}

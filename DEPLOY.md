@@ -61,6 +61,28 @@ Vercel KV variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) are auto-injected w
 
 ## 4. Vercel KV (Whitelist Store)
 
+### Who can sign in
+
+Two paths, checked in this order:
+
+1. **Allowed domain** — anyone with a Google account on `hjengineering.com.au`
+   or `premiercranes.com.au` is admitted automatically and added to the
+   whitelist on first sign-in, so there is a record of who has actually used
+   it. Override the list with `AUTH_ALLOWED_DOMAINS` (comma-separated) — it is
+   an environment variable precisely so a domain can be *removed* without
+   waiting for a build.
+2. **Individual approval** — everyone else lands in the pending queue at
+   `/admin/whitelist` for you to Approve or Dismiss.
+
+The domain check prefers Google's `hd` (hosted domain) claim over the text
+after the `@`, so a personal account cannot get in by choosing a convincing
+address. It falls back to the address only when Google reports the email as
+verified.
+
+> ⚠️ A domain rule delegates offboarding to that company's IT. Removing an
+> individual holds only until their next sign-in re-adds them — to actually
+> revoke someone on an allowed domain, take the domain off the list.
+
 > **Not optional if you want access control to work.** Without KV,
 > `whitelist.ts` silently falls back to an in-memory set that resets on every
 > cold start and only ever contains the hard-coded seed address. Approvals

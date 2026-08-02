@@ -1,7 +1,7 @@
 import { SvelteKitAuth } from '@auth/sveltekit';
 import Google from '@auth/sveltekit/providers/google';
 import { env } from '$env/dynamic/private';
-import { isWhitelisted, requestAccess } from '$lib/server/whitelist';
+import { isWhitelisted, requestAccess, addToWhitelist, isAllowedDomain } from '$lib/server/whitelist';
 
 export const { handle, signIn, signOut } = SvelteKitAuth({
 	providers: [
@@ -16,9 +16,22 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 		maxAge: 60 * 60 // 1 hour
 	},
 	callbacks: {
-		async signIn({ user }) {
+		async signIn({ user, profile }) {
 			if (!user.email) return false;
 			if (await isWhitelisted(user.email)) return true;
+
+			// Auto-admit the operating domains. `profile.hd` is Google's
+			// hosted-domain claim — asserted by Google for Workspace accounts,
+			// not parsed by us from the address.
+			const hd = typeof profile?.hd === 'string' ? profile.hd : null;
+			const verified = profile?.email_verified === true;
+			if (isAllowedDomain(user.email, hd, verified)) {
+				// Recorded on first sign-in so there is a list of who has
+				// actually used the domain rule, and so an individual can be
+				// removed without dropping the whole domain.
+				await addToWhitelist(user.email);
+				return true;
+			}
 
 			// Not approved yet. Record the attempt and send them somewhere
 			// that says so, rather than returning false — which produces a
