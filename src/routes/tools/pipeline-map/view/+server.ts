@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isWhitelisted } from '$lib/server/whitelist';
 import { getPipelineMap } from '$lib/server/pipeline-map';
-import { authConfigured, AUTH_NOT_CONFIGURED } from '$lib/server/auth-config';
+import { authConfigured, AUTH_NOT_CONFIGURED, signInUrl } from '$lib/server/auth-config';
 
 /**
  * Serves the pipeline map as a full HTML document.
@@ -36,7 +36,7 @@ export const GET: RequestHandler = async (event) => {
 
 	const session = await event.locals.auth?.();
 	if (!session?.user?.email) {
-		redirect(303, '/auth/signin');
+		redirect(303, signInUrl(event.url));
 	}
 
 	if (!(await isWhitelisted(session.user.email))) {

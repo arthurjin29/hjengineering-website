@@ -2,7 +2,7 @@ import type { PageServerLoad } from './$types';
 import { error, redirect } from '@sveltejs/kit';
 import { isWhitelisted } from '$lib/server/whitelist';
 import { getPipelineMapMeta } from '$lib/server/pipeline-map';
-import { authConfigured, AUTH_NOT_CONFIGURED } from '$lib/server/auth-config';
+import { authConfigured, AUTH_NOT_CONFIGURED, signInUrl } from '$lib/server/auth-config';
 
 /**
  * Landing page for the pipeline map. The map document itself is served by
@@ -19,7 +19,7 @@ export const load: PageServerLoad = async (event) => {
 
 	const session = await event.locals.auth?.();
 	if (!session?.user?.email) {
-		redirect(303, '/auth/signin');
+		redirect(303, signInUrl(event.url));
 	}
 
 	// Re-checked here, not just in the sign-in callback. Sessions are JWTs

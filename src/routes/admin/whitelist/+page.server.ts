@@ -9,7 +9,7 @@ import {
 	approveRequest,
 	clearRequest
 } from '$lib/server/whitelist';
-import { authConfigured, AUTH_NOT_CONFIGURED } from '$lib/server/auth-config';
+import { authConfigured, AUTH_NOT_CONFIGURED, signInUrl } from '$lib/server/auth-config';
 
 export const load: PageServerLoad = async (event) => {
 	if (!authConfigured()) {
@@ -18,7 +18,7 @@ export const load: PageServerLoad = async (event) => {
 
 	const session = await event.locals.auth?.();
 	if (!session?.user?.email) {
-		redirect(303, '/auth/signin');
+		redirect(303, signInUrl(event.url));
 	}
 
 	const admin = await isAdmin(session.user.email);

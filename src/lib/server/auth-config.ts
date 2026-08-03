@@ -17,6 +17,24 @@ export function authConfigured(): boolean {
 	return Boolean(env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET && env.AUTH_SECRET);
 }
 
+/**
+ * Sign-in URL that returns the visitor to where they were headed.
+ *
+ * Without a `callbackUrl` Auth.js drops everyone on the home page after
+ * signing in, so clicking a tool means signing in and then hunting for the
+ * tool again.
+ *
+ * Only the path and query are carried over — never a full URL from user
+ * input. A callback that accepted an absolute URL would be an open redirect:
+ * a crafted link could send someone through a genuine sign-in on this domain
+ * and land them somewhere else entirely, with the trust of having just
+ * authenticated here.
+ */
+export function signInUrl(url: URL): string {
+	const target = url.pathname + url.search;
+	return `/auth/signin?callbackUrl=${encodeURIComponent(target)}`;
+}
+
 export const AUTH_NOT_CONFIGURED =
 	'Sign-in is not configured on this deployment yet, so this page cannot be opened. ' +
 	'Set AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET and AUTH_SECRET in Vercel — see DEPLOY.md sections 3 and 4.';
