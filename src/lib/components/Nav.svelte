@@ -82,7 +82,7 @@
 							</svg>
 						</a>
 							<a
-								href="/tools/pipeline-map"
+								href="/tools/pipeline-map/view"
 								class="flex items-center gap-2 px-4 py-2 text-sm text-text-body transition-colors hover:bg-bg-subtle hover:text-text-dark"
 								onclick={closeTools}
 							>
@@ -144,7 +144,7 @@
 					<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 				</svg>
 			</a>
-				<a href="/tools/pipeline-map" class="flex items-center gap-2 rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>
+				<a href="/tools/pipeline-map/view" class="flex items-center gap-2 rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>
 					SE Australian Sustainable AI Construction
 					<svg class="h-3.5 w-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 						<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
