@@ -3,8 +3,13 @@
 	// sign-in when opened — the same treatment as the NHVR entry. Listing a
 	// tool is not access: the routes enforce that server-side.
 
+	import { page } from '$app/state';
+
 	let mobileOpen = $state(false);
 	let toolsOpen = $state(false);
+
+	const isActive = (path: string) =>
+		page.url.pathname === path || page.url.pathname.startsWith(path + '/');
 
 	function closeMobile() {
 		mobileOpen = false;
@@ -29,7 +34,11 @@
 
 		<!-- Desktop nav -->
 		<div class="hidden items-center gap-6 text-sm text-text-body md:flex">
-			<a href="/services" class="transition-colors hover:text-text-dark">Services</a>
+			<a
+				href="/services"
+				aria-current={isActive('/services') ? 'page' : undefined}
+				class="transition-colors hover:text-text-dark aria-[current=page]:font-semibold aria-[current=page]:text-text-dark"
+			>Services</a>
 
 			<!-- Tools dropdown -->
 			<div class="relative">
@@ -96,9 +105,21 @@
 				{/if}
 			</div>
 
-			<a href="/resources" class="transition-colors hover:text-text-dark">Resources</a>
-			<a href="/about" class="transition-colors hover:text-text-dark">About</a>
-			<a href="/blog" class="transition-colors hover:text-text-dark">Blog</a>
+			<a
+				href="/resources"
+				aria-current={isActive('/resources') ? 'page' : undefined}
+				class="transition-colors hover:text-text-dark aria-[current=page]:font-semibold aria-[current=page]:text-text-dark"
+			>Resources</a>
+			<a
+				href="/about"
+				aria-current={isActive('/about') ? 'page' : undefined}
+				class="transition-colors hover:text-text-dark aria-[current=page]:font-semibold aria-[current=page]:text-text-dark"
+			>About</a>
+			<a
+				href="/blog"
+				aria-current={isActive('/blog') ? 'page' : undefined}
+				class="transition-colors hover:text-text-dark aria-[current=page]:font-semibold aria-[current=page]:text-text-dark"
+			>Blog</a>
 			<a
 				href="/contact"
 				class="rounded-md bg-primary-text px-4 py-1.5 font-semibold text-white transition-colors hover:bg-primary-hover"
@@ -133,7 +154,7 @@
 			id="mobile-nav"
 			class="fixed inset-0 top-[65px] z-40 flex flex-col gap-1 bg-bg-light px-6 py-6 md:hidden"
 		>
-			<a href="/services" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Services</a>
+			<a href="/services" aria-current={isActive('/services') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>Services</a>
 			<a href="/tools/sling-calculator" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Sling Length Calculator</a>
 			<a href="/tools/offset-beam-selector/index.html" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Offset Beam Selector</a>
 			<a href="/tools/wind-calculator" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Wind Load Calculator</a>
@@ -151,9 +172,9 @@
 						<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 					</svg>
 				</a>
-			<a href="/resources" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Resources</a>
-			<a href="/about" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>About</a>
-			<a href="/blog" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>Blog</a>
+			<a href="/resources" aria-current={isActive('/resources') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>Resources</a>
+			<a href="/about" aria-current={isActive('/about') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>About</a>
+			<a href="/blog" aria-current={isActive('/blog') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>Blog</a>
 			<a
 				href="/contact"
 				class="mt-4 rounded-md bg-primary-text px-4 py-3 text-center font-semibold text-white hover:bg-primary-hover"

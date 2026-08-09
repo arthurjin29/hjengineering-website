@@ -13,15 +13,17 @@
 	--color-bg-subtle: #f1f5f9;
 	--color-bg-card: #f8fafc;
 
-	/* Primary accent */
+	/* Primary accent
+	   --color-primary is for dark backgrounds only; --color-primary-text is the
+	   on-light variant and must clear WCAG AA (4.5:1) on #ffffff and #f1f5f9. */
 	--color-primary: #06b6d4;
-	--color-primary-text: #0891b2;
-	--color-primary-hover: #0e7490;
+	--color-primary-text: #0e7490;
+	--color-primary-hover: #155e75;
 
 	/* Text */
 	--color-text-dark: #0f172a;
 	--color-text-body: #475569;
-	--color-text-muted: #64748b;
+	--color-text-muted: #5b6b80;
 	--color-text-light: #f1f5f9;
 	--color-text-faint: #94a3b8;
 
