@@ -47,6 +47,13 @@ body {
 	-moz-osx-font-smoothing: grayscale;
 }
 
+/* Figures line up in columns wherever the mono face or a table is used —
+   without this, calculator results jitter as digits change width. */
+.font-mono,
+table {
+	font-variant-numeric: tabular-nums;
+}
+
 /* Focus styles — accessible cyan outline */
 :focus-visible {
 	outline: 2px solid var(--color-primary-text);

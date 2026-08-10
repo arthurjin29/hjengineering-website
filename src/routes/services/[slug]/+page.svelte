@@ -6,11 +6,7 @@
 	let service = $derived(data.service);
 </script>
 
-<SeoMeta
-	title="{service.name} — HJ Engineering"
-	description={service.tagline}
-	ogUrl="https://hjengineering.com.au/services/{service.slug}"
-/>
+<SeoMeta title="{service.name} — HJ Engineering" description={service.tagline} />
 
 <!-- Breadcrumb JSON-LD -->
 <svelte:head>
