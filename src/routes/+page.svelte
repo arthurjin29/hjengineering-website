@@ -59,7 +59,7 @@
 
 <!-- Credentials bar -->
 <div class="flex flex-wrap justify-center gap-4 bg-primary-text px-8 py-3.5 text-center text-sm font-medium text-white md:gap-8">
-	<span>Registered Professional Engineer — PE0018121</span>
+	<span>PE · CPEng · NER · RPEQ</span>
 	<span class="hidden md:inline">·</span>
 	<span>ABN 34 695 221 768</span>
 </div>

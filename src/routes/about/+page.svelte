@@ -47,8 +47,8 @@
 				<h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-text-dark">Credentials</h3>
 				<dl class="space-y-3 text-sm">
 					<div>
-						<dt class="font-medium text-text-muted">Professional Engineer</dt>
-						<dd class="font-mono text-text-dark">PE0018121</dd>
+						<dt class="font-medium text-text-muted">Registrations</dt>
+						<dd class="text-text-dark">PE · CPEng · NER · RPEQ</dd>
 					</div>
 					<div>
 						<dt class="font-medium text-text-muted">ABN</dt>

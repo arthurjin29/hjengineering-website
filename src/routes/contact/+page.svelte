@@ -136,8 +136,8 @@
 						</dd>
 					</div>
 					<div>
-						<dt class="font-medium text-text-muted">Professional Engineer</dt>
-						<dd class="font-mono text-text-dark">PE0018121</dd>
+						<dt class="font-medium text-text-muted">Registrations</dt>
+						<dd class="text-text-dark">PE · CPEng · NER · RPEQ</dd>
 					</div>
 					<div>
 						<dt class="font-medium text-text-muted">ABN</dt>
