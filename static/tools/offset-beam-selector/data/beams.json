@@ -4558,5 +4558,223 @@
     },
     "self_lift_lug_x_mm": 2799,
     "back_lug_dia_mm": 38
+  },
+  {
+    "id": "MX#OLB4",
+    "maker": "Maxirig",
+    "name": "DRH MX#OLB4 9.16t x 3.0m offset",
+    "wll_t": 9.16,
+    "wll_source": "certified",
+    "cert": {
+      "standard": "Dynamic Rigging Hire supplier certification",
+      "by": "Dynamic Rigging Hire",
+      "model_no": "Offset beam MX#OLB4",
+      "drawing_no": "MX#OLB4 GA",
+      "note": "Supplier-certified hire asset (Arthur 2026-09-12). Certificate is held by Dynamic Rigging Hire; the rated chart and 9.16 t WLL are printed on the manufacturer GA."
+    },
+    "length_mm": 6620,
+    "beam_depth_mm": 260,
+    "self_weight_kg": 2222,
+    "counterweight_kg": 1420,
+    "counterweight_source": "drawing_stated",
+    "beam_only_kg": 802,
+    "beam_cog_x_mm": 3335,
+    "beam_cog_source": "chart_calibrated",
+    "cog_fit_rms_kg": 18,
+    "ballast_kg": 1420,
+    "datum": "load_point",
+    "geometry_source": "ga_drawing_vector_2026-09-12",
+    "chart_status": "certified_capacity",
+    "offset_lugs": [
+      {
+        "id": 1,
+        "x_mm": 1000,
+        "offset_m": 1.0,
+        "dia_mm": 38,
+        "chart_lug_label": "A"
+      },
+      {
+        "id": 2,
+        "x_mm": 1500,
+        "offset_m": 1.5,
+        "dia_mm": 38,
+        "chart_lug_label": "B"
+      },
+      {
+        "id": 3,
+        "x_mm": 2000,
+        "offset_m": 2.0,
+        "dia_mm": 38,
+        "chart_lug_label": "C"
+      },
+      {
+        "id": 4,
+        "x_mm": 2500,
+        "offset_m": 2.5,
+        "dia_mm": 38,
+        "chart_lug_label": "D"
+      },
+      {
+        "id": 5,
+        "x_mm": 3000,
+        "offset_m": 3.0,
+        "dia_mm": 38,
+        "chart_lug_label": "E"
+      }
+    ],
+    "back_lug_x_mm": 6369,
+    "back_lug_dia_mm": 38,
+    "load_lug": {
+      "x_mm": 0,
+      "dia_mm": 35
+    },
+    "self_lift_lug_x_mm": 3320,
+    "self_lift_lug_dia_mm": 38,
+    "ballast": {
+      "first_hole_x_mm": 3350,
+      "pitch_mm": 250,
+      "holes": [
+        "1-3",
+        "2-4",
+        "3-5",
+        "4-6",
+        "5-7",
+        "6-8",
+        "7-9",
+        "8-10",
+        "9-11",
+        "10-12",
+        "11-13",
+        "12-14"
+      ],
+      "holes_x_mm": [
+        3350,
+        3600,
+        3850,
+        4100,
+        4350,
+        4600,
+        4850,
+        5100,
+        5350,
+        5600,
+        5850,
+        6100
+      ],
+      "span_holes": 3,
+      "note": "14 pin holes at 250 pitch, hole 1 at x=3100. The C/W spans 3 holes, so each charted position \"n-(n+2)\" acts at its MIDDLE hole - holes/holes_x_mm therefore list the 12 C/W CoG positions (first = 3350), not the 14 pin holes."
+    },
+    "capacity_kg": {
+      "1": {
+        "1-3": 5165,
+        "2-4": 5530,
+        "3-5": 5895,
+        "4-6": 6255,
+        "5-7": 6620,
+        "6-8": 6980,
+        "7-9": 7345,
+        "8-10": 7710,
+        "9-11": 8070,
+        "10-12": 8435,
+        "11-13": 8795,
+        "12-14": 9160
+      },
+      "2": {
+        "1-3": 2700,
+        "2-4": 2945,
+        "3-5": 3185,
+        "4-6": 3430,
+        "5-7": 3670,
+        "6-8": 3915,
+        "7-9": 4155,
+        "8-10": 4395,
+        "9-11": 4640,
+        "10-12": 4880,
+        "11-13": 5120,
+        "12-14": 5365
+      },
+      "3": {
+        "1-3": 1470,
+        "2-4": 1650,
+        "3-5": 1830,
+        "4-6": 2015,
+        "5-7": 2195,
+        "6-8": 2380,
+        "7-9": 2560,
+        "8-10": 2740,
+        "9-11": 2925,
+        "10-12": 3105,
+        "11-13": 3290,
+        "12-14": 3470
+      },
+      "4": {
+        "1-3": 735,
+        "2-4": 875,
+        "3-5": 1020,
+        "4-6": 1165,
+        "5-7": 1310,
+        "6-8": 1455,
+        "7-9": 1605,
+        "8-10": 1750,
+        "9-11": 1895,
+        "10-12": 2040,
+        "11-13": 2185,
+        "12-14": 2330
+      },
+      "5": {
+        "1-3": 240,
+        "2-4": 360,
+        "3-5": 480,
+        "4-6": 605,
+        "5-7": 725,
+        "6-8": 845,
+        "7-9": 970,
+        "8-10": 1090,
+        "9-11": 1210,
+        "10-12": 1330,
+        "11-13": 1455,
+        "12-14": 1575
+      }
+    },
+    "rigging": {
+      "type": "fixed_slings",
+      "sling_lengths": [
+        {
+          "lug": 1,
+          "front_mm": 7000,
+          "rear_mm": 8823
+        },
+        {
+          "lug": 2,
+          "front_mm": 7000,
+          "rear_mm": 8527
+        },
+        {
+          "lug": 3,
+          "front_mm": 7000,
+          "rear_mm": 8261
+        },
+        {
+          "lug": 4,
+          "front_mm": 7000,
+          "rear_mm": 8007
+        },
+        {
+          "lug": 5,
+          "front_mm": 7000,
+          "rear_mm": 7769
+        }
+      ],
+      "max_rear_leg_note": "2-leg sling to a single hook; front 7000 mm hangs vertical at the selected lug."
+    },
+    "provenance_notes": [
+      "Lug positions, rear lug (6369 mm) and C/W hole 1 (3100 mm) are vector-extracted from the GA at 10.2630 mm/pt (+/-0.02%).",
+      "Beam CoG 3335 mm is fitted to the 60 chart cells (RMS 18 kg); the drawing's beam self-lift lug measures 3320 mm, confirming it to 15 mm.",
+      "GA-stated rear sling lengths for lugs C and D are ~9 mm longer than the 6369 mm rear-lug geometry gives (lugs A/B/E agree to 1 mm). Treated as vendor rounding."
+    ],
+    "flags": [
+      "WLL 9.16 T — confirm against the drawing load chart and certificate before use.",
+      "Owner/hirer: Dynamic Rigging Hire. Manufacturer: Maxirig."
+    ]
   }
 ]

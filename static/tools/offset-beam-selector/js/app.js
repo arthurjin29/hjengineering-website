@@ -207,16 +207,19 @@ function updateMaxirigPanel(b, lugId, load, g, res, useWing) {
   const wllKg = b.wll_t * 1000;
   const pick = res.pick;
   const msgs = [];
-  if (!ok) msgs.push(`Load ${load.toLocaleString()} kg exceeds the certified capacity at lug ${lugId} (max ${res.maxGovKg.toLocaleString()} kg${useWing ? ', wing-weights chart' : ''}). Try a lower lug or move the load closer.`);
-  if (sl.conflict) msgs.push(`Lug ${lugId} rear sling length is UNRESOLVED: ${sl.conflict}`);
+  const lugTxt = window.lugLabel(b, lugId);   // chart tag (A-E) where the maker letters its lugs
+  if (!ok) msgs.push(`Load ${load.toLocaleString()} kg exceeds the certified capacity at lug ${lugTxt} (max ${res.maxGovKg.toLocaleString()} kg${useWing ? ', wing-weights chart' : ''}). Try a lower lug or move the load closer.`);
+  if (sl.conflict) msgs.push(`Lug ${lugTxt} rear sling length is UNRESOLVED: ${sl.conflict}`);
   if (useWing) msgs.push('Wing-weights chart in use (2×750 kg wings fitted). Standard chart does not apply.');
   const util = ok ? (load / pick.govKg * 100).toFixed(0) + '%' : '—';
   panel.innerHTML =
     `<strong>${ok ? 'OK' : 'NOT OK'}</strong> &nbsp; ` +
-    (ok ? `Counterweight position <strong>${pick.hole}</strong> — ${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugId}` : 'No rated counterweight position carries this load') +
-    `<br/>Certified capacity (lug ${lugId}${useWing ? ', wing weights' : ''}): cell <strong>${ok ? pick.cellKg.toLocaleString() + ' kg' : '—'}</strong> · lug max ${res.maxGovKg.toLocaleString()} kg · WLL ${b.wll_t} t${ok && pick.cellKg > wllKg ? ' (capped at WLL)' : ''} · util ${util}` +
+    (ok ? `Counterweight position <strong>${pick.hole}</strong> — ${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTxt}` : 'No rated counterweight position carries this load') +
+    `<br/>Certified capacity (lug ${lugTxt}${useWing ? ', wing weights' : ''}): cell <strong>${ok ? pick.cellKg.toLocaleString() + ' kg' : '—'}</strong> · lug max ${res.maxGovKg.toLocaleString()} kg · WLL ${b.wll_t} t${ok && pick.cellKg > wllKg ? ' (capped at WLL)' : ''} · util ${util}` +
     `<br/>Fixed slings — front ${sl.front_mm ? (sl.front_mm/1000).toFixed(2) + ' m @ ' + (g.valid ? g.frontDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; rear ${sl.rear_mm ? (sl.rear_mm/1000).toFixed(2) + ' m @ ' + (g.valid ? g.rearDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; hook ${g.valid ? Math.round(g.hookOffsetMm) + ' mm rear of lug' : '—'}` +
-    `<br/><span class="muted">Certified to ${c.standard || 'AS 4991-2004'} · proof cert ${c.proof_cert_no || '—'}${c.proof_date ? ' (' + c.proof_date + ')' : ''} · ${c.model_no || ''} · dwg ${c.drawing_no || '—'}</span>` +
+    // Only assert certification when a certificate is actually on file. Beams certified by the
+    // supplier without one recorded here simply say nothing — never a defaulted standard number.
+    (c.standard ? `<br/><span class="muted">Certified to ${c.standard} · proof cert ${c.proof_cert_no || '—'}${c.proof_date ? ' (' + c.proof_date + ')' : ''} · ${c.model_no || ''} · dwg ${c.drawing_no || '—'}</span>` : '') +
     (msgs.length ? `<div class="muted">${msgs.join('<br/>')}</div>` : '');
 }
 $('wing').addEventListener('change', () => {
@@ -351,8 +354,11 @@ function render() {
 }
 
 // Persistent, beam-level provenance warnings (independent of the per-calc result panel).
-// Only OLB-22 carries a signed AS 4991 certificate; every other beam's WLL is back-calculated
-// from the GTC chart maximum and must be confirmed against the certificate before use.
+// Two WLL provenances: 'certified' (a certificate is on file — OLB-22, the Maxirig fleet, and the
+// supplier-certified DRH asset) and 'inferred_from_chart' (back-calculated by us from the GTC chart
+// maximum). The GTC wording below belongs ONLY to the inferred path — that provenance exists on GTC
+// beams alone, and naming the wrong maker in a safety message is itself a false statement. A beam
+// needing extra confirm-before-use wording carries it in its own `flags`, not here.
 function renderBeamFlags() {
   const b = state.beam, out = [];
   if (b.wll_source !== 'certified') {
@@ -395,7 +401,7 @@ function updateDetachedPanel(su, tension) {
   const swing = su.level ? 'stays level' : `swings ${Math.abs(su.tiltDeg).toFixed(0)}° ${su.tiltDeg < 0 ? 'rear-down' : 'rear-up'}`;
   const msgs = [`Empty-beam CoG jumps to ${(cogX/1000).toFixed(2)} m (${behind} m behind the offset lug).`];
   if (slack || !su.valid) msgs.push('Top sling goes slack — the rear leg / chain block carries the empty beam.');
-  msgs.push('Release the load slowly; use the chain block to control the empty beam (GTC procedure).');
+  msgs.push('Release the load slowly; use the chain block to control the empty beam.');
   panel.innerHTML =
     `<strong>LOAD DETACHED</strong> — beam ${swing}` +
     `<br/>CoG (beam + ${((state.beam.ballast_kg + wingKg()) / 1000).toFixed(2)} T ballast${wingKg() ? ' incl. wings' : ''}) at ${(cogX/1000).toFixed(2)} m &nbsp; ` +
