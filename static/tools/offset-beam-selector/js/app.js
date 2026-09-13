@@ -127,8 +127,11 @@ function calc() {
   // head height (top sling) defaults to the 8 m soft cap, kept within the rear-angle range
   const rr0 = state.rig.rear_sling_deg, capLen = state.rig.max_sling_len_mm || 8000;
   const hMin = lugRun() * Math.tan(rr0.min * Math.PI / 180), hMax = lugRun() * Math.tan(rr0.max * Math.PI / 180);
-  state.headMm = clamp(capLen, hMin, hMax);
+  // Ballast first: the head solver needs the hole, and balanceBallast does not depend on the head.
   state.holeIndex = window.balanceBallast(state.beam, state.lugId, state.loadKg, wingKg()).holeIndex;
+  // Shared with the finder (selector.solveHeadMm) so a beam the finder offers never opens NOT OK:
+  // clamping straight to the window ceiling delivers ~60.1 deg after levelling and trips the limit.
+  state.headMm = window.solveHeadMm(state.beam, state.lugId, state.holeIndex, state.loadKg, wingKg()).headMm;
   const cb = state.rig.chain_block_mm;
   const lrLevel = levelLrForHole(state.holeIndex);
   // size the fixed steel tail so the chain block opens at ~6 m and the beam still starts level
@@ -563,7 +566,9 @@ function runFind() {
     `<td>${r.offsetM.toFixed(2)}</td>` +
     `<td>${Math.round(r.capacityKg).toLocaleString()}</td>` +
     `<td>${r.hole}</td>` +
-    `<td>${r.rearAngleDeg.toFixed(0)}&#176;</td></tr>`).join('');
+    // one decimal: the finder now lands rigs deliberately close to the 60 deg ceiling, and a
+    // whole-number 59.9 -> "60" would print the very limit the row had to stay under.
+    `<td>${r.rearAngleDeg.toFixed(1)}&#176;</td></tr>`).join('');
   el.innerHTML = `<table class="findtable"><thead><tr>` +
     `<th>Beam</th><th>Maker</th><th>Lug offset (m)</th><th>Capacity (kg)</th><th>C/W hole</th><th>Rear angle</th>` +
     `</tr></thead><tbody>${rows}</tbody></table>`;

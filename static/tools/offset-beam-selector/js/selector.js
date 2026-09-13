@@ -16,6 +16,33 @@ function resolveRig(beam) {
   };
 }
 
+// The tallest head height (top-sling rise) whose DELIVERED rear angle sits inside the rear-angle
+// window. This is not the same as aiming the head at the window ceiling: levelling the beam
+// re-lengthens the rear leg, so a head aimed at exactly 60 deg delivers ~60.1-60.9 deg and the app's
+// own limit then rejects the rig it just recommended. Shared by app.js and findSuitableBeams so the
+// two can never disagree about what rig a beam gets (same reason resolveRig is shared).
+function solveHeadMm(beam, lugId, holeIndex, loadKg, wingKg) {
+  const rig = resolveRig(beam), lug = lugById(beam, lugId);
+  const run = beam.back_lug_x_mm - lug.x_mm;
+  const rr = rig.rear_sling_deg, capLen = rig.max_sling_len_mm || 8000, cb = rig.chain_block_mm;
+  const hMin = run * Math.tan(rr.min * Math.PI / 180), hMax = run * Math.tan(rr.max * Math.PI / 180);
+  const aim = Math.max(hMin, Math.min(capLen, hMax));
+  const at = head => {
+    const su0 = suspensionGeometry(beam, lugId, holeIndex, loadKg, head, head, wingKg || 0);
+    const fixedTail = Math.max(0, su0.LrLevel - 6000);   // LrLevel = rear leg that levels the beam
+    const chainBlock = Math.max(cb.min, Math.min(cb.max, su0.LrLevel - fixedTail));
+    return suspensionGeometry(beam, lugId, holeIndex, loadKg, head, fixedTail + chainBlock, wingKg || 0);
+  };
+  let su = at(aim);
+  if (!(run > 0) || !su.valid || su.rearAngleDeg < rr.max) return { headMm: aim, su };
+  let lo = hMin, hi = aim, best = aim, bestSu = su;      // bisect down to the tallest feasible head
+  for (let i = 0; i < 30 && hi - lo > 1; i++) {
+    const mid = (lo + hi) / 2, t = at(mid);
+    if (t.valid && t.rearAngleDeg < rr.max) { best = mid; bestSu = t; lo = mid; } else hi = mid;
+  }
+  return { headMm: best, su: bestSu };
+}
+
 function lugById(beam, lugId) {
   return beam.offset_lugs.find(l => l.id === Number(lugId));
 }
@@ -392,15 +419,7 @@ function findSuitableBeams(beams, loadKg, offsetM) {
       const rig = resolveRig(beam);
       const run = beam.back_lug_x_mm - lug.x_mm;
       if (!(run > 0)) continue;
-      const rr = rig.rear_sling_deg, capLen = rig.max_sling_len_mm || 8000;
-      const hMin = run * Math.tan(rr.min * Math.PI / 180), hMax = run * Math.tan(rr.max * Math.PI / 180);
-      const headMm = Math.max(hMin, Math.min(capLen, hMax));
-      const cb = rig.chain_block_mm;
-      const su0 = suspensionGeometry(beam, lug.id, bal.holeIndex, loadKg, headMm, headMm, 0);
-      const lrLevel = su0.LrLevel;                        // rear-leg length that levels the beam
-      const fixedTail = Math.max(0, lrLevel - 6000);
-      const chainBlock = Math.max(cb.min, Math.min(cb.max, lrLevel - fixedTail));
-      const su = suspensionGeometry(beam, lug.id, bal.holeIndex, loadKg, headMm, fixedTail + chainBlock, 0);
+      const su = solveHeadMm(beam, lug.id, bal.holeIndex, loadKg, 0).su;
       if (!su.valid) continue;                            // legs can't close a triangle
       if (su.rearAngleDeg >= REAR_MAX) continue;          // rear sling must be < 60 deg
       if (Math.abs(su.tiltDeg) >= TILT_MAX) continue;     // beam must sit within 15 deg of level
@@ -419,4 +438,4 @@ function findSuitableBeams(beams, loadKg, offsetM) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
+if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
