@@ -1,6 +1,30 @@
 // Lug display label — self-contained mirror of selector.lugLabel (diagram.js stays dependency-free
 // so its node test needs no selector import). Chart-lettered lugs (OLB-1 = A/B, OLB-14 = A/B/C)
 // show their letter; everything else shows the numeric id.
+// The ballast rail a renderer should draw, and what to write under each hole.
+// A charted position may SPAN several pin holes (`ballast.span_holes`): MX#OLB4's "1-3" is one
+// counterweight pinned through holes 1 and 3 with its CoG on hole 2. Where that is so, holes_x_mm
+// holds each position's CoG — NOT the pins — and the physical rail carries span-1 more holes than
+// there are positions. Derived from the pitch rather than stored again, so the two cannot drift.
+// Shared by both Maxirig renderers; duplicating it is how the two views come to disagree.
+function ballastRail(beam) {
+  const b = beam.ballast;
+  const holeX = i => b.holes_x_mm ? b.holes_x_mm[i] : b.first_hole_x_mm + b.pitch_mm * i;
+  const span = b.span_holes || 1;
+  const halfSpan = (span - 1) / 2 * (b.pitch_mm || 0);
+  if (span <= 1) return { xs: b.holes.map((_, i) => holeX(i)), labels: b.holes.slice(), span, halfSpan };
+  const xs = Array.from({ length: b.holes.length + span - 1 },
+                        (_, k) => holeX(0) - halfSpan + k * b.pitch_mm);
+  return { xs, labels: xs.map((_, k) => String(k + 1)), span, halfSpan };   // pins numbered as on the GA
+}
+
+// Pin x positions for the counterweight at a given position CoG: the two ends of the span where a
+// position spans several holes, else the single hole it names.
+function ballastPinXs(beam, cwXMm) {
+  const { span, halfSpan } = ballastRail(beam);
+  return span > 1 ? [cwXMm - halfSpan, cwXMm + halfSpan] : [cwXMm];
+}
+
 function lugTag(beam, lugId) {
   const l = beam.offset_lugs.find(x => x.id === Number(lugId));
   return (l && l.chart_lug_label) || String(lugId);
@@ -223,15 +247,25 @@ function renderMaxirigDiagram(beam, view) {
   const cleatH = Math.max(240, depth * 0.9);
   const holeX = i => beam.ballast.holes_x_mm ? beam.ballast.holes_x_mm[i] : beam.ballast.first_hole_x_mm + beam.ballast.pitch_mm * i;
 
-  // ballast bracket engages TWO adjacent holes: the picked hole and its neighbour (i+1, else i-1).
-  // Pin lines land on the exact hole x (holes_x_mm honoured); the block centres on their midpoint.
+  // A charted C/W position may SPAN several pin holes (ballast.span_holes): MX#OLB4's "1-3" is one
+  // counterweight pinned through holes 1 and 3 with its CoG on hole 2. Where that is so, holes_x_mm
+  // lists the CoG of each position, not the pins, and the physical pin rail has span-1 MORE holes
+  // than there are positions — derived here from the pitch rather than stored again, so the two can
+  // never drift apart.
+  const rail = ballastRail(beam), span = rail.span, railXs = rail.xs;
+
   const pinHoleXs = [];
-  let cwCenter = cwX;
+  let cwCenter = cwX;                                   // ALWAYS the CoG — never a recomputed midpoint
   if (pick.holeIndex != null) {
-    const pi = pick.holeIndex, nb = (pi + 1 < beam.ballast.holes.length) ? pi + 1 : pi - 1;
-    pinHoleXs.push(holeX(pi));
-    if (nb >= 0 && nb !== pi) pinHoleXs.push(holeX(nb));
-    cwCenter = pinHoleXs.reduce((a, b) => a + b, 0) / pinHoleXs.length;
+    if (span > 1) {
+      pinHoleXs.push(...ballastPinXs(beam, cwX));       // pinned through the two ends of the span
+    } else {
+      // single-hole positions: the bracket engages the picked hole and its neighbour (i+1, else i-1)
+      const pi = pick.holeIndex, nb = (pi + 1 < beam.ballast.holes.length) ? pi + 1 : pi - 1;
+      pinHoleXs.push(holeX(pi));
+      if (nb >= 0 && nb !== pi) pinHoleXs.push(holeX(nb));
+      cwCenter = pinHoleXs.reduce((a, b) => a + b, 0) / pinHoleXs.length;
+    }
   } else {
     pinHoleXs.push(cwX);
   }
@@ -322,8 +356,9 @@ function renderMaxirigDiagram(beam, view) {
 
   // ---- ballast hole circles on the lower flange (letters drawn LAST, over the block) ----
   const railY = -depth * 0.62;
-  beam.ballast.holes.forEach((letter, i) => {
-    const hx = holeX(i), sel = pick.holeIndex === i;
+  railXs.forEach((hx, i) => {
+    // highlight the holes the counterweight is actually PINNED through
+    const sel = pick.holeIndex != null && pinHoleXs.some(px => Math.abs(px - hx) < 1);
     L2.push(`<circle data-role="hole" data-hole-i="${i}" cx="${SX(hx)}" cy="${SY(railY)}" r="${(14*scale).toFixed(1)}" fill="${sel ? accent : '#8a949e'}" stroke="#2b3038" stroke-width="0.6"/>`);
   });
 
@@ -336,9 +371,13 @@ function renderMaxirigDiagram(beam, view) {
   L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+16}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">C/W ${(beam.counterweight_kg/1000).toFixed(2)} t · ${cwLabel}</text>`);
   if (pick.distFromLugMm != null) L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+31}" text-anchor="middle" fill="#333" font-size="16">${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
 
-  // ballast letters LAST — on top of the block, white halo so a number is never hidden
-  beam.ballast.holes.forEach((letter, i) => {
-    L2.push(`<text data-role="ballast-letter" x="${SX(holeX(i))}" y="${(Number(SY(-depth))+13).toFixed(1)}" text-anchor="middle" font-size="13" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round">${letter}</text>`);
+  // Ballast labels LAST — on top of the block, white halo so a number is never hidden. Where a
+  // position spans several pins the rail carries the PHYSICAL pins, so label them 1..n exactly as
+  // the GA numbers them; the span itself is named under the block ("Pos 12-14"), so nothing is lost
+  // and the rail stays legible — 12 overlapping span labels ("10-12","11-13") were unreadable.
+  const railLabels = rail.labels;
+  railLabels.forEach((letter, i) => {
+    L2.push(`<text data-role="ballast-letter" x="${SX(railXs[i])}" y="${(Number(SY(-depth))+13).toFixed(1)}" text-anchor="middle" font-size="13" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round">${letter}</text>`);
   });
 
   // ---- load hanging from the load lug (below the beam nose) ----
@@ -488,10 +527,13 @@ function renderMaxirigChainBlock(beam, view) {
   L2.push(loadLugSvg(loadDia, depth, scale, SXg, SYg));
   // ballast rail + hole circles (letters drawn LAST, over the counterweight block)
   const railY = depth * 0.62;
-  L2.push(`<line x1="${lx(holeX(0))}" y1="${Spx(depth*0.44)}" x2="${lx(holeX(beam.ballast.holes.length-1))}" y2="${Spx(depth*0.44)}" stroke="#5b6670" stroke-width="1"/>`);
-  beam.ballast.holes.forEach((letter, i) => {
-    const sel = i === view.holeIndex;
-    L2.push(`<circle data-role="hole" data-hole-i="${i}" cx="${lx(holeX(i))}" cy="${Spx(railY)}" r="${(14*scale).toFixed(1)}" fill="${sel ? accent : '#8a949e'}" stroke="#2b3038" stroke-width="0.6"/>`);
+  const rail = ballastRail(beam);                     // same rail the fixed-sling view draws
+  const pinXsW = view.holeXMm != null ? ballastPinXs(beam, view.holeXMm) : [];
+  L2.push(`<line x1="${lx(rail.xs[0])}" y1="${Spx(depth*0.44)}" x2="${lx(rail.xs[rail.xs.length-1])}" y2="${Spx(depth*0.44)}" stroke="#5b6670" stroke-width="1"/>`);
+  rail.xs.forEach((hx, i) => {
+    // highlight the holes the counterweight is PINNED through (the span ends), not the CoG hole
+    const sel = rail.span > 1 ? pinXsW.some(px => Math.abs(px - hx) < 1) : i === view.holeIndex;
+    L2.push(`<circle data-role="hole" data-hole-i="${i}" cx="${lx(hx)}" cy="${Spx(railY)}" r="${(14*scale).toFixed(1)}" fill="${sel ? accent : '#8a949e'}" stroke="#2b3038" stroke-width="0.6"/>`);
   });
   // counterweight rigidly bolted below the beam (draggable, snaps to holes) — tilts with the beam
   const cwx = view.holeXMm * scale, bw = blockW * scale, bh = blockH * scale;
@@ -499,19 +541,23 @@ function renderMaxirigChainBlock(beam, view) {
   const boltTop = depth * 0.45 * scale, blockTop = (depth + 40) * scale;
   L2.push(`<g id="cwt" style="cursor:grab">`);
   L2.push(`<title>Drag to move ballast (snaps to holes)</title>`);
-  L2.push(`<line data-role="cw-pin" x1="${cwx.toFixed(1)}" y1="${boltTop.toFixed(1)}" x2="${cwx.toFixed(1)}" y2="${(blockTop + bh * 0.3).toFixed(1)}" stroke="#2b3038" stroke-width="2.5"/>`);
+  (rail.span > 1 ? pinXsW : [view.holeXMm]).forEach(pxW => {
+    const px = pxW * scale;
+    L2.push(`<line data-role="cw-pin" x1="${px.toFixed(1)}" y1="${boltTop.toFixed(1)}" x2="${px.toFixed(1)}" y2="${(blockTop + bh * 0.3).toFixed(1)}" stroke="#2b3038" stroke-width="2.5"/>`);
+  });
   L2.push(`<rect x="${(cwx - bw / 2).toFixed(1)}" y="${blockTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${accent}" stroke="#16331f" stroke-width="1.5"/>`);
   L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 14).toFixed(1)}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">${((beam.counterweight_kg + (view.wingKg || 0)) / 1000).toFixed(2)} t${view.wingKg ? ' (incl. wings)' : ''} · Hole ${view.hole}</text>`);
   L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 28).toFixed(1)}" text-anchor="middle" fill="#333" font-size="16">${(cwtFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
   L2.push(`</g>`);
   // ballast letters LAST (over the block, white halo)
-  const nHoles = beam.ballast.holes.length;
-  const holePitchPx = nHoles > 1 ? Math.abs(holeX(1) - holeX(0)) * scale : 999;
+  const nHoles = rail.xs.length;
+  const holePitchPx = nHoles > 1 ? Math.abs(rail.xs[1] - rail.xs[0]) * scale : 999;
   const lblStep = Math.max(1, Math.ceil(16 / holePitchPx));
-  beam.ballast.holes.forEach((letter, i) => {
+  rail.labels.forEach((letter, i) => {
     const onStep = i % lblStep === 0 && (nHoles - 1 - i) >= lblStep;
-    if (!onStep && i !== nHoles - 1 && i !== view.holeIndex) return;
-    L2.push(`<text data-role="ballast-letter" x="${lx(holeX(i))}" y="${Spx(depth + 170)}" text-anchor="middle" font-size="15" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${letter}</text>`);
+    const engaged = rail.span > 1 && pinXsW.some(px => Math.abs(px - rail.xs[i]) < 1);
+    if (!onStep && i !== nHoles - 1 && !engaged && i !== view.holeIndex) return;
+    L2.push(`<text data-role="ballast-letter" x="${lx(rail.xs[i])}" y="${Spx(depth + 170)}" text-anchor="middle" font-size="15" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${letter}</text>`);
   });
   L2.push(`</g>`);
 
