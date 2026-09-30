@@ -125,6 +125,28 @@ table {
 	padding: 0.125rem 0.375rem;
 	border-radius: 0.25rem;
 }
+/* Tables scroll sideways on a phone rather than squeezing their columns. */
+.prose table {
+	display: block;
+	overflow-x: auto;
+	border-collapse: collapse;
+	margin-bottom: 1.25rem;
+	font-size: 0.8125rem;
+	line-height: 1.5;
+}
+.prose th,
+.prose td {
+	padding: 0.5rem 0.75rem;
+	border-bottom: 1px solid var(--color-border);
+	text-align: left;
+	vertical-align: top;
+}
+.prose th {
+	background: var(--color-bg-subtle);
+	color: var(--color-text-dark);
+	font-weight: 600;
+	white-space: nowrap;
+}
 
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
