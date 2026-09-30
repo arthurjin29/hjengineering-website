@@ -20,10 +20,23 @@ import { createClient, type RedisClientType } from 'redis';
 let client: RedisClientType | null = null;
 let connecting: Promise<RedisClientType | null> | null = null;
 
+// After a failed connect, skip Redis for this long rather than paying the
+// connect timeout on every request.
+const RETRY_AFTER_MS = 60_000;
+let failedAt = 0;
+
 async function connect(): Promise<RedisClientType | null> {
 	if (!env.REDIS_URL) return null;
+	if (Date.now() - failedAt < RETRY_AFTER_MS) return null;
 
-	const c: RedisClientType = createClient({ url: env.REDIS_URL });
+	// A store that no longer exists used to leave every caller waiting on
+	// endless reconnects, which hung the contact form until the function
+	// timed out. Fail fast instead and let callers use their in-memory
+	// fallback: the whitelist's is deny-by-default, so access does not widen.
+	const c: RedisClientType = createClient({
+		url: env.REDIS_URL,
+		socket: { connectTimeout: 3000, reconnectStrategy: false }
+	});
 
 	// Without a listener, node-redis treats a connection error as an
 	// unhandled 'error' event and takes the whole function down. Access
@@ -31,7 +44,16 @@ async function connect(): Promise<RedisClientType | null> {
 	// dying on a transient network blip is worse.
 	c.on('error', (err) => console.error('redis:', err?.message ?? err));
 
-	await c.connect();
+	try {
+		await c.connect();
+	} catch (err) {
+		console.error('redis: connect failed, using in-memory fallback:', (err as Error)?.message ?? err);
+		failedAt = Date.now();
+		// A client whose first connect failed is already closed, and
+		// destroying it again throws.
+		if (c.isOpen) c.destroy();
+		return null;
+	}
 	client = c;
 	return c;
 }
