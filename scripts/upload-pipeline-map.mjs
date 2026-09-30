@@ -1,11 +1,11 @@
 /**
  * Upload the published heavy-lift pipeline map into the project's Redis store.
  *
- * The map is business-development material and this repository is public, so
- * the file is deliberately never committed here. It is generated in the
- * heavy-lift-pipeline project by `build.py --publish` — which refuses to
- * write anything if its own leak audit fails — and pushed into KV by this
- * script. The gated route reads it back at request time.
+ * The map is a generated file, so it is kept out of this repository. It is
+ * built in the heavy-lift-pipeline project by `build.py --publish` — which
+ * refuses to write anything if its own leak audit fails — and pushed into
+ * Redis by this script. The public /tools/pipeline-map/view route reads it
+ * back at request time.
  *
  *   node scripts/upload-pipeline-map.mjs [path-to-pipeline-map.html]
  *

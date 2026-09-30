@@ -1,15 +1,10 @@
 import type { RequestHandler } from './$types';
-import { redirect } from '@sveltejs/kit';
-import { isWhitelisted } from '$lib/server/whitelist';
 import { getPipelineMap } from '$lib/server/pipeline-map';
-import { authConfigured, AUTH_NOT_CONFIGURED, signInUrl } from '$lib/server/auth-config';
 
 /**
- * Serves the pipeline map as a full HTML document.
- *
- * The checks here are not a duplicate of the landing page's — this endpoint
- * is directly addressable, so it has to stand on its own. Anyone who found
- * this URL would otherwise reach the map without passing the page.
+ * Serves the pipeline map as a full HTML document. Public — no sign-in and
+ * no whitelist; the landing page at `/tools/pipeline-map` is the one meant
+ * for search engines, so this response carries `x-robots-tag: noindex`.
  *
  * Errors are returned as small HTML documents rather than thrown with
  * `error()`, because a thrown error from an endpoint is serialised as JSON
@@ -29,41 +24,23 @@ a{color:#7fb2ff}</style></head>
 	);
 }
 
-export const GET: RequestHandler = async (event) => {
-	if (!authConfigured()) {
-		return deny(503, 'Sign-in not configured', AUTH_NOT_CONFIGURED);
-	}
-
-	const session = await event.locals.auth?.();
-	if (!session?.user?.email) {
-		redirect(303, signInUrl(event.url));
-	}
-
-	if (!(await isWhitelisted(session.user.email))) {
-		return deny(
-			403,
-			'Access restricted',
-			'Your account is not on the access list for the pipeline map. ' +
-				'Contact <a href="mailto:arthur@hjengineering.com.au">Arthur</a> if you need access.'
-		);
-	}
-
+export const GET: RequestHandler = async () => {
 	const html = await getPipelineMap();
 	if (!html) {
 		return deny(
 			503,
-			'Not published yet',
-			'The pipeline map has not been uploaded. Run <code>build.py --publish</code> ' +
-				'in heavy-lift-pipeline, then <code>npm run upload:pipeline-map</code>.'
+			'Map being updated',
+			'The project map is being updated. Please check back shortly.'
 		);
 	}
 
 	return new Response(html, {
 		headers: {
 			'content-type': 'text/html; charset=utf-8',
-			// Never cached by a shared cache: this is per-user gated content,
-			// and a CDN copy would outlive the session that earned it.
-			'cache-control': 'private, no-store'
+			// The same document for every visitor, so a shared cache may hold
+			// it. Ten minutes bounds how long a re-upload takes to show.
+			'cache-control': 'public, max-age=600',
+			'x-robots-tag': 'noindex'
 		}
 	});
 };

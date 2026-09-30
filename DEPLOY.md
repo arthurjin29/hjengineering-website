@@ -102,11 +102,11 @@ verified.
 
 ## 4a. Heavy Lift Pipeline Map
 
-The gated map at `/tools/pipeline-map` reads its HTML from the same KV store
+The public map at `/tools/pipeline-map` reads its HTML from the same KV store
 as the whitelist. **The map data is never committed to this repository** —
-this repo is public, so a login on the route would do nothing for a file
-anyone can read on GitHub. Publishing is therefore a two-step process, and
-neither step touches git.
+it is a generated file, rebuilt and leak-audited by `build.py --publish`, so
+the audited upload is the only copy that ships. Publishing is a two-step
+process, and neither step touches git.
 
 1. Generate the BD-stripped map in the heavy-lift-pipeline project:
    ```bash
@@ -125,10 +125,9 @@ neither step touches git.
 
 KV keys used: `pipeline-map:html`, `pipeline-map:meta`.
 
-Access is the existing Google sign-in plus the KV whitelist, re-checked on
-every request rather than only at sign-in (sessions are one-hour JWTs, so a
-removal would otherwise stay live until the token expired). Grant or revoke
-at `/admin/whitelist`.
+The map is public: no sign-in and no whitelist. `/tools/pipeline-map/view`
+is sent with `cache-control: public, max-age=600`, so a re-upload can take up
+to ten minutes to show.
 
 Re-run both steps whenever the dataset changes — the map is a snapshot, not
 a live view.

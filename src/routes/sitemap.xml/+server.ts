@@ -14,7 +14,8 @@ export const GET: RequestHandler = async () => {
 		'/resources',
 		'/blog',
 		'/tools/sling-calculator',
-		'/tools/wind-calculator'
+		'/tools/wind-calculator',
+		'/tools/pipeline-map'
 	];
 
 	const servicePages = services.map((s) => `/services/${s.slug}`);

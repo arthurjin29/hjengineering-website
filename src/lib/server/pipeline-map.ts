@@ -3,14 +3,12 @@ import { getRedis } from './redis';
 /**
  * Storage for the heavy-lift pipeline map.
  *
- * The map is business-development material: which energy and data-centre
- * projects we are tracking, where, and at what stage. It is deliberately NOT
- * committed to this repository, because this repository is public — a login
- * on the route would do nothing for a file anyone can read on GitHub.
- *
- * It lives in Vercel KV instead, the same store the access whitelist uses,
- * and is fetched server-side by a route that checks the session first. That
- * keeps the data perimeter and the auth perimeter the same shape.
+ * The map shows which energy and data-centre projects are being built, where,
+ * and at what stage. It is served publicly, but it is not committed to this
+ * repository because it is a generated file: `build.py --publish` rebuilds it
+ * from the pipeline dataset and audits it for anything that must not leave
+ * the office. Keeping it in Redis means a data refresh is an upload, not a
+ * commit and redeploy, and the audited file is the only copy that ships.
  *
  * Uploaded by `scripts/upload-pipeline-map.mjs` from the output of
  * `build.py --publish` in the heavy-lift-pipeline project.
@@ -41,5 +39,9 @@ export async function getPipelineMapMeta(): Promise<PipelineMapMeta | null> {
 	const store = await getKv();
 	if (!store) return null;
 	const raw = await store.get(MAP_META_KEY);
-	return raw ? (JSON.parse(raw) as PipelineMapMeta) : null;
+	if (!raw) return null;
+	// The page is public, so pass on only the three counts it shows — never
+	// whatever else a manual upload might have put in the stored object.
+	const { published, projects, withheld } = JSON.parse(raw) as PipelineMapMeta;
+	return { published, projects, withheld };
 }

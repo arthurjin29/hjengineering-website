@@ -97,17 +97,13 @@
 								<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 							</svg>
 						</a>
-							<a
-								href="/tools/pipeline-map/view"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-text-body transition-colors hover:bg-bg-subtle hover:text-text-dark"
-								onclick={closeTools}
-							>
-								SE Australian Sustainable AI Construction
-								<svg class="h-3.5 w-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
-								</svg>
-							</a>
+						<a
+							href="/tools/pipeline-map"
+							class="block px-4 py-2 text-sm text-text-body transition-colors hover:bg-bg-subtle hover:text-text-dark"
+							onclick={closeTools}
+						>
+							SE Australian Sustainable AI Construction
+						</a>
 					</div>
 				{/if}
 			</div>
@@ -173,13 +169,7 @@
 					<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 				</svg>
 			</a>
-				<a href="/tools/pipeline-map/view" class="flex items-center gap-2 rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>
-					SE Australian Sustainable AI Construction
-					<svg class="h-3.5 w-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-						<path d="M7 11V7a5 5 0 0 1 10 0v4" />
-					</svg>
-				</a>
+			<a href="/tools/pipeline-map" class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle" onclick={closeMobile}>SE Australian Sustainable AI Construction</a>
 			<a href="/resources" aria-current={isActive('/resources') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>Resources</a>
 			<a href="/about" aria-current={isActive('/about') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>About</a>
 			<a href="/blog" aria-current={isActive('/blog') ? 'page' : undefined} class="rounded-lg px-4 py-3 text-base text-text-body hover:bg-bg-subtle aria-[current=page]:font-semibold aria-[current=page]:text-text-dark" onclick={closeMobile}>Blog</a>
