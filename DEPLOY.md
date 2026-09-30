@@ -102,11 +102,9 @@ verified.
 
 ## 4a. Heavy Lift Pipeline Map
 
-The public map at `/tools/pipeline-map` reads its HTML from the same KV store
-as the whitelist. **The map data is never committed to this repository** —
-it is a generated file, rebuilt and leak-audited by `build.py --publish`, so
-the audited upload is the only copy that ships. Publishing is a two-step
-process, and neither step touches git.
+The public map at `/tools/pipeline-map` is bundled with the site:
+`src/lib/server/data/pipeline-map.html` plus a trimmed sidecar holding only the
+date, counts and hash. Both are generated — never edit them by hand.
 
 1. Generate the BD-stripped map in the heavy-lift-pipeline project:
    ```bash
@@ -115,19 +113,17 @@ process, and neither step touches git.
    This refuses to write anything if its leak audit fails, and records the
    SHA-256 of what it wrote in `pipeline-map.meta.json`.
 
-2. Upload it:
+2. Copy it into the site, then commit and push:
    ```bash
-   vercel env pull .env.local     # once, for KV credentials
-   npm run upload:pipeline-map
+   npm run sync:pipeline-map
    ```
-   The upload re-checks the file against that hash, so a file edited after
-   the audit — or a sidecar from a different build — is rejected.
-
-KV keys used: `pipeline-map:html`, `pipeline-map:meta`.
+   The sync re-checks the file against that hash, so a file edited after the
+   audit — or a sidecar from a different build — is rejected. It drops the
+   withheld project names from the sidecar before writing it here.
 
 The map is public: no sign-in and no whitelist. `/tools/pipeline-map/view`
-is sent with `cache-control: public, max-age=600`, so a re-upload can take up
-to ten minutes to show.
+is sent with `cache-control: public, max-age=600`, so an update can take up
+to ten minutes to show after deploy.
 
 Re-run both steps whenever the dataset changes — the map is a snapshot, not
 a live view.

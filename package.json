@@ -14,7 +14,7 @@
 		"test:watch": "vitest",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"upload:pipeline-map": "node scripts/upload-pipeline-map.mjs"
+		"sync:pipeline-map": "node scripts/sync-pipeline-map.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.3",

@@ -1,21 +1,18 @@
-import { getRedis } from './redis';
+import html from './data/pipeline-map.html?raw';
+import meta from './data/pipeline-map.meta.json';
 
 /**
- * Storage for the heavy-lift pipeline map.
+ * The heavy-lift pipeline map, bundled with the site.
  *
- * The map shows which energy and data-centre projects are being built, where,
- * and at what stage. It is served publicly, but it is not committed to this
- * repository because it is a generated file: `build.py --publish` rebuilds it
- * from the pipeline dataset and audits it for anything that must not leave
- * the office. Keeping it in Redis means a data refresh is an upload, not a
- * commit and redeploy, and the audited file is the only copy that ships.
+ * The map shows which wind, data-centre, power and water projects are being
+ * built in VIC, NSW and SA, and at what stage. It is public, so it ships with
+ * each deploy rather than being read from a store at request time.
  *
- * Uploaded by `scripts/upload-pipeline-map.mjs` from the output of
- * `build.py --publish` in the heavy-lift-pipeline project.
+ * Both files are generated: `build.py --publish` in the heavy-lift-pipeline
+ * project rebuilds the map and audits it for anything that must not leave
+ * the office, and `scripts/sync-pipeline-map.mjs` copies the audited file
+ * here after checking it against the hash that build recorded.
  */
-export const MAP_KEY = 'pipeline-map:html';
-export const MAP_META_KEY = 'pipeline-map:meta';
-
 export interface PipelineMapMeta {
 	/** ISO date the map was generated. */
 	published: string;
@@ -24,24 +21,14 @@ export interface PipelineMapMeta {
 	withheld: number;
 }
 
-async function getKv() {
-	return await getRedis();
-}
-
-/** The published map HTML, or null when nothing has been uploaded yet. */
+/** The published map HTML, or null when none has been synced. */
 export async function getPipelineMap(): Promise<string | null> {
-	const store = await getKv();
-	if (!store) return null;
-	return await store.get(MAP_KEY);
+	return html.trim() ? html : null;
 }
 
 export async function getPipelineMapMeta(): Promise<PipelineMapMeta | null> {
-	const store = await getKv();
-	if (!store) return null;
-	const raw = await store.get(MAP_META_KEY);
-	if (!raw) return null;
-	// The page is public, so pass on only the three counts it shows — never
-	// whatever else a manual upload might have put in the stored object.
-	const { published, projects, withheld } = JSON.parse(raw) as PipelineMapMeta;
+	if (!html.trim()) return null;
+	// Only the three counts the page shows.
+	const { published, projects, withheld } = meta as PipelineMapMeta;
 	return { published, projects, withheld };
 }
