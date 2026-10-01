@@ -255,7 +255,11 @@ const layersControl = L.control.layers({ 'Dark street': dark, 'Satellite': sat }
 
 // Every project draws as its own marker at every zoom — no clustering.
 // Nothing is ever hidden inside a count badge you have to click to open.
+// Only markers near the view are on the map at a time (syncVisible).
 const layer = L.layerGroup().addTo(map);
+// Entries that pass the current filters; syncVisible puts those near the
+// view on the map.
+let passing = new Set();
 
 // Map labels are plain non-interactive markers in their own pane, above the
 // project markers (600) and below hover tooltips (650). Leaflet re-measures
@@ -329,6 +333,23 @@ function badgeSvg(sector, s) {
     '<circle cx="12" cy="12" r="10" fill="none" stroke="' + s.colour +
     '" stroke-width="' + s.weight + '"/>' + fill +
     '<g color="' + s.ink + '">' + GLYPHS[sector] + '</g></svg>';
+}
+
+// Map markers show the badge as an <img> from an SVG data URI: one element
+// per marker instead of an inline SVG of four to seven shapes. Markers that
+// look the same share one cached URI at any size; the <img> sets the size.
+const BADGE_URIS = new Map();
+function badgeUri(sector, s) {
+  const key = [sector, s.colour, s.fillOpacity, s.weight, s.ink].join('|');
+  let uri = BADGE_URIS.get(key);
+  if (!uri) {
+    const svg = badgeSvg(sector, s)
+      .replace(' width="' + s.size + '" height="' + s.size + '"', '')
+      .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+    uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    BADGE_URIS.set(key, uri);
+  }
+  return uri;
 }
 
 // Smaller badges stack on top, so a big wind marker can never sit over and
@@ -423,12 +444,10 @@ DATA.features.forEach(f => {
   const p = f.properties;
   const s = markerStyle(p);
   const m = L.marker([p.lat, p.lng], {
-    icon: L.divIcon({
-      html: badgeSvg(p.sector, s), className: s.className,
-      iconSize: [s.size, s.size], popupAnchor: [0, -s.size / 2]
-    }),
+    icon: L.icon({ iconUrl: badgeUri(p.sector, s),
+                   iconSize: [s.size, s.size], className: s.className }),
     zIndexOffset: stackOffset(s.size),
-    title: p.name
+    title: p.name, alt: p.name
   });
   const label = markerLabel(p);
   // Bottom of the text 6 px above the badge, where the 'top' tooltip sat.
@@ -456,9 +475,10 @@ rows.forEach((tr, key) => {
     if (!entry) return;
     document.querySelectorAll('tr.hit').forEach(x => x.classList.remove('hit'));
     tr.classList.add('hit');
-    // Without clustering the marker is always on the map when its filter
-    // passes, so centring and opening the detail panel is all that is needed.
-    if (!layer.hasLayer(entry.marker)) return;   // filtered out
+    // Without clustering every passing marker shows once it is near the
+    // view: centring it (syncVisible adds it on moveend) and opening the
+    // detail panel is all that is needed.
+    if (!passing.has(entry)) return;   // filtered out
     map.setView([entry.props.lat, entry.props.lng],
                 Math.max(map.getZoom(), 11));
     openDetail(key);
@@ -549,13 +569,14 @@ function closeDetail(returnFocus) {
   if (returnFocus) map.getContainer().focus({ preventScroll: true });
 }
 
-// After a filter pass: a re-added marker has a new icon element, so the ring
-// goes back on; a marker filtered off the map takes the panel with it,
-// without pulling focus away from the filter being used.
+// After a filter pass or a move: a re-added marker has a new icon element,
+// so the ring goes back on; a marker filtered out takes the panel with it,
+// without pulling focus away from the filter being used. A marker that is
+// only scrolled out of view keeps its panel.
 function syncSelected() {
   if (!detail.selected) return;
-  if (layer.hasLayer(detail.selected.marker)) showSelected(true);
-  else closeDetail(false);
+  if (!passing.has(detail.selected)) closeDetail(false);
+  else if (layer.hasLayer(detail.selected.marker)) showSelected(true);
 }
 
 el('detailClose').addEventListener('click', () => closeDetail(true));
@@ -588,27 +609,42 @@ function apply() {
     return p.year >= lo && p.year <= hi;
   };
 
-  layer.clearLayers();
-  labelLayer.clearLayers();
-  const keep = [];
-  let shown = 0;
+  const keep = new Set();
   markers.forEach((entry, key) => {
     const ok = passes(entry.props);
     const tr = rows.get(key);
     if (tr) tr.style.display = ok ? '' : 'none';
-    if (ok) { keep.push(entry); shown++; }
+    if (ok) keep.add(entry);
   });
-  // Stacking order comes from each marker's zIndexOffset (stackOffset), not
-  // from the order they are added here.
-  keep.forEach(e => {
-    layer.addLayer(e.marker);
-    if (e.label) labelLayer.addLayer(e.label);
-  });
-  el('count').textContent = shown;
+  passing = keep;
+  syncVisible();
+  el('count').textContent = keep.size;
   const empty = el('emptyState');   // absent when the page has no table
-  if (empty) empty.style.display = shown ? 'none' : 'block';
+  if (empty) empty.style.display = keep.size ? 'none' : 'block';
   syncSelected();
   declutterLabels();
+}
+
+// Leaflet moves every marker on the map on each zoom, on screen or not, so
+// only passing markers within CULL_PAD screens of the view are kept on it
+// (half a screen of margin each side, so a short pan shows no empty edge).
+// Labels also stay off below HH_LABEL_ZOOM, where CSS would hide them.
+// Stacking order comes from each marker's zIndexOffset (stackOffset), not
+// from the order they are added.
+const CULL_PAD = 0.5;
+function syncVisible() {
+  const bounds = map.getBounds().pad(CULL_PAD);
+  const labelsOn = map.getZoom() >= HH_LABEL_ZOOM;
+  markers.forEach(entry => {
+    const on = passing.has(entry) && bounds.contains(entry.marker.getLatLng());
+    toggleLayer(layer, entry.marker, on);
+    if (entry.label) toggleLayer(labelLayer, entry.label, on && labelsOn);
+  });
+}
+
+function toggleLayer(group, item, on) {
+  if (on && !group.hasLayer(item)) group.addLayer(item);
+  else if (!on && group.hasLayer(item)) group.removeLayer(item);
 }
 
 // Hub-height and capacity labels only once there is room to read them.
@@ -620,7 +656,8 @@ function syncLabelVisibility() {
   declutterLabels();
 }
 map.on('zoomend', syncLabelVisibility);
-map.on('moveend overlayadd', declutterLabels);
+map.on('moveend', () => { syncVisible(); syncSelected(); declutterLabels(); });
+map.on('overlayadd', declutterLabels);
 map.on('viewreset', () => requestAnimationFrame(declutterLabels));
 syncLabelVisibility();
 
