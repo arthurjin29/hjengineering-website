@@ -53,21 +53,22 @@ a { color:var(--accent); }
    centres) sit directly on the map tiles, so they need a dark halo
    to stay readable over both street and satellite bases. The artifact map
    used SVG paint-order for this; the Leaflet equivalent is a text-shadow
-   ring, since these are HTML tooltips rather than SVG text. */
-.leaflet-tooltip.hh-label {
-  background:none; border:none; box-shadow:none; padding:0;
+   ring, since these are HTML labels rather than SVG text. Each label is a
+   zero-size marker anchored on its project; the span sits centred above. */
+.hh-label { width:0 !important; height:0 !important; }
+.hh-label span {
+  position:absolute; left:0; transform:translateX(-50%);
   color:#e8edf2; font-size:11px; font-weight:600; white-space:nowrap;
   text-shadow:0 0 3px #0b0f14, 0 0 3px #0b0f14, 0 0 2px #0b0f14;
 }
-.leaflet-tooltip.hh-label::before { display:none; }
 /* Hidden below HH_LABEL_ZOOM: ~50 wind labels compete in the western
    Victoria belt alone, and at national zoom they print over each other.
    The markers stay visible at every zoom — only the numbers wait until
    there is room to read them. */
-.hh-hidden .leaflet-tooltip.hh-label { display:none; }
+.hh-hidden .hh-label { display:none; }
 /* Set by declutterLabels on a label that would print over a more important
    one. Separate from the zoom gate above, so either can hide a label. */
-.leaflet-tooltip.hh-label.lbl-clutter { display:none; }
+.hh-label.lbl-clutter { display:none; }
 .mk-indicative { opacity:.6; }
 
 .markerkey { margin-top:6px; font-size:11.5px; color:var(--muted);
@@ -256,6 +257,14 @@ const layersControl = L.control.layers({ 'Dark street': dark, 'Satellite': sat }
 // Nothing is ever hidden inside a count badge you have to click to open.
 const layer = L.layerGroup().addTo(map);
 
+// Map labels are plain non-interactive markers in their own pane, above the
+// project markers (600) and below hover tooltips (650). Leaflet re-measures
+// and moves every permanent tooltip on each zoom, which froze zooming once
+// there were ~200 labels; a marker is only moved.
+map.createPane('mapLabels').style.zIndex = 640;
+map.getPane('mapLabels').style.pointerEvents = 'none';
+const labelLayer = L.layerGroup().addTo(map);
+
 // Marker conventions are carried over from the legacy artifact map
 // (vic_crane_projects_artifact.html), which encoded four things at once.
 // They now sit on a round badge carrying the sector's icon (GLYPHS — the
@@ -393,16 +402,16 @@ function declutterLabels() {
   const nodes = [];
   const items = [];
   markers.forEach(entry => {
-    const tip = entry.marker.getTooltip();
-    const node = tip && tip.getElement();
+    const node = entry.label && entry.label.getElement();
     if (!node) return;
     node.classList.remove('lbl-clutter');
-    if (!layer.hasLayer(entry.marker)) return;
+    if (!labelLayer.hasLayer(entry.label)) return;
     nodes.push(node);
     items.push(labelItem(entry.props));
   });
   if (map.getContainer().classList.contains('hh-hidden')) return;
-  nodes.forEach((node, i) => { items[i].rect = node.getBoundingClientRect(); });
+  // The anchor is zero-size; the text span carries the label's box.
+  nodes.forEach((node, i) => { items[i].rect = node.firstChild.getBoundingClientRect(); });
   declutter(items).forEach(i => nodes[i].classList.add('lbl-clutter'));
 }
 
@@ -422,12 +431,14 @@ DATA.features.forEach(f => {
     title: p.name
   });
   const label = markerLabel(p);
-  if (label !== null) {
-    m.bindTooltip(label, {
-      permanent: true, direction: 'top', className: 'hh-label',
-      offset: [0, -s.size / 2]
-    });
-  }
+  // Bottom of the text 6 px above the badge, where the 'top' tooltip sat.
+  const labelMarker = label === null ? null : L.marker([p.lat, p.lng], {
+    pane: 'mapLabels', interactive: false, keyboard: false,
+    icon: L.divIcon({
+      className: 'hh-label', iconSize: [0, 0],
+      html: '<span style="bottom:' + (s.size / 2 + 6) + 'px">' + esc(label) + '</span>'
+    })
+  });
   m.on('click', () => {
     openDetail(KEY(f));
     const tr = rows.get(KEY(f));
@@ -436,7 +447,7 @@ DATA.features.forEach(f => {
     tr.classList.add('hit');
     tr.scrollIntoView({ block: 'center' });
   });
-  markers.set(KEY(f), { marker: m, props: p });
+  markers.set(KEY(f), { marker: m, label: labelMarker, props: p });
 });
 
 rows.forEach((tr, key) => {
@@ -578,6 +589,7 @@ function apply() {
   };
 
   layer.clearLayers();
+  labelLayer.clearLayers();
   const keep = [];
   let shown = 0;
   markers.forEach((entry, key) => {
@@ -588,7 +600,10 @@ function apply() {
   });
   // Stacking order comes from each marker's zIndexOffset (stackOffset), not
   // from the order they are added here.
-  keep.forEach(e => layer.addLayer(e.marker));
+  keep.forEach(e => {
+    layer.addLayer(e.marker);
+    if (e.label) labelLayer.addLayer(e.label);
+  });
   el('count').textContent = shown;
   const empty = el('emptyState');   // absent when the page has no table
   if (empty) empty.style.display = shown ? 'none' : 'block';
