@@ -6,6 +6,8 @@ description: What is being built in Victoria, New South Wales and South Australi
 
 Australia's data-centre build is real and accelerating, but the grid, not demand or capital, decides where and when it lands. This note sets out what is being built in Victoria, New South Wales and South Australia, the power and planning rules now shaping it, and what that means for the people who build it. Figures are from public sources as at 30 September 2026, listed at the end.
 
+*Updated 1 October 2026: we checked the STACK, NEXTDC, Goodman, Equinix and Microsoft projects against the companies' own announcements and project pages. What we found is under "What the operators say" below, and on the map.*
+
 ## Six things to know
 
 1. **Power sets the pace.** AEMO now expects data centres to use about 34 TWh a year by 2035-36, seven times today's 5 TWh and 13% of NEM demand. A year ago its forecast was 21.4 TWh by 2034-35.
@@ -30,7 +32,7 @@ Australia runs about 1.6 GW of operating data-centre IT load, and Sydney holds 5
 
 ## What is being built in VIC, NSW and SA
 
-Our [project map](/tools/pipeline-map) tracks around 60 data-centre projects in Victoria and New South Wales that are under construction, approved or in planning. NSW holds more of them and the largest. In South Australia, Firmus plans AI factories at Tailem Bend (about 1.0 GW of critical IT load at full build-out) and Stirling North, backed by a 12-year, 600 MW firm supply deal with Gunvor signed in June 2026.
+Our [project map](/tools/pipeline-map) tracks 55 data-centre projects in Victoria and New South Wales that are under construction, approved or in planning, 15 of them under construction, plus 13 operating sites. NSW holds more of them and the largest. In South Australia, Firmus plans AI factories at Tailem Bend (about 1.0 GW of critical IT load at full build-out) and Stirling North, backed by a 12-year, 600 MW firm supply deal with Gunvor signed in June 2026.
 
 Capacities below are as each source states them. IT load, total power demand and MVA are different measures, so they do not add up.
 
@@ -42,6 +44,7 @@ Capacities below are as each source states them. IT load, total power demand and
 | AirTrunk Kurri Kurri | NSW | AirTrunk | 540 MW power | EIS lodged |
 | CDC Marsden Park | NSW | CDC | 504 MW planned | Early construction |
 | STACK SYD01, Erskine Park | NSW | STACK | 450 MW | Under assessment |
+| NEXTDC S4, Horsley Park | NSW | NEXTDC | 365 MW | 250 MW in progress, 115 MW in planning |
 | AirTrunk MEL2, Tullamarine | VIC | AirTrunk | 354+ MW | Approved; opening 2H 2027 |
 | Zerra, Campbellfield | VIC | Zerra DC | 336 MW power | Planning lodged |
 | GreenSquare MEL1, Spotswood | VIC | GreenSquare | 240 MW IT | Planning lodged |
@@ -50,6 +53,18 @@ Capacities below are as each source states them. IT load, total power demand and
 | Goodman MEL02, Truganina | VIC | Goodman | About 180 MVA, building A | Planning lodged; investment decision due Oct 2026 |
 
 Two clusters carry most of the work: Melbourne's west (Truganina, Laverton, Brooklyn, Tullamarine, Campbellfield) and western Sydney (Eastern Creek, Kemps Creek, Marsden Park, Erskine Park), with Macquarie Park as a smaller inner-Sydney node.
+
+## What the operators say
+
+What five of the biggest names report about their own sites, as at 1 October 2026:
+
+- **NEXTDC** (FY26 results, 27 August 2026) has raised S4 Horsley Park to 365 MW, with 250 MW in progress. It has 165 MW in progress at M3 West Footscray and early works under way at M4 Fishermans Bend, starting with 10 MW. It has also bought a site for M5 Melbourne, with planning work starting for up to 1.2 GW; the location has not been disclosed.
+- **Goodman** marked the start of construction at SYD01, Artarmon, on 3 March 2026: 61 MW of IT capacity in five 12.2 MW phases, backed by 90 MW of secured power, with the first phase ready in Q2 2028.
+- **Microsoft** is building at Cawley Road in Brooklyn, Woods Road in Truganina and Garden Drive in Tullamarine. Cawley Road's first building has operated since February 2025, and generator commissioning is set for 14 October 2026. Woods Road and Garden Drive were each about 60% operational in August 2026, with the rest still being fitted out. In Sydney, an expansion of its two Station Road buildings at Seven Hills was approved in December 2022; Microsoft has not published whether it has been built.
+- **STACK** lists 432 MW across two Melbourne campuses in Truganina. MEL01 is 180 MW across four buildings. Its builder, Hickory, lists the last two (C and D) as completed, and in July 2025 STACK secured A$1.3bn of green financing for the campus's next phase. MEL02 is a 252 MW single building.
+- **Equinix** says SY9x at Rosehill provides more than 14 MW now and will provide more than 28 MW when fully built out. We found no Equinix site under construction in Victoria, New South Wales or South Australia.
+
+The common thread is phasing. A campus often opens its first hall years before its last, so fit-out, generator commissioning and plant lifts carry on long after a site is listed as operating.
 
 ## What it costs
 
@@ -90,13 +105,14 @@ Water is becoming an enabler as much as a constraint: Victoria's plan points to 
 - **Generation follows.** Batteries, solar and wind are being built to supply the new load. At Uungula, the only large wind farm under construction in NSW, turbine parts weigh up to almost 100 t.
 - **Timing risk is real.** A project without a connection agreement is a land bank, not a pipeline. Grid connections, the new planning buffers and November's Victorian election all move dates.
 
-Our [project map](/tools/pipeline-map) shows these projects by sector (wind, data centres, power and water) with the latest news for each, focused on Victoria, New South Wales and South Australia.
+Our [project map](/tools/pipeline-map) shows these projects by sector (wind, data centres, power and water) with the latest news for each, focused on Victoria, New South Wales and South Australia. Click a project for its details. The map also labels capacity, draws the state borders and links to the National Heavy Vehicle Regulator's oversize and overmass network map, so you can check route access for heavy transport.
 
 ## What we could not confirm
 
 - A market-wide operating MW figure for Melbourne or Adelaide.
 - Any disclosed large data-centre supply contract with an Australian generator-retailer; Microsoft's and AWS's renewable totals are press reports of Senate submissions.
 - A South Australian government data-centre policy.
+- Where NEXTDC's M5 Melbourne campus will be.
 
 ## Sources
 
@@ -104,7 +120,8 @@ Our [project map](/tools/pipeline-map) shows these projects by sector (wind, dat
 - Transgrid: [new transmission capacity in Sydney, 26 Aug 2026](https://www.transgrid.com.au/media-publications/news-articles/new-transmission-capacity-in-sydney-to-be-funded-by-data-centres/); [synchronous condenser works, 21 Jul 2026](https://www.transgrid.com.au/media-publications/news-articles/critical-grid-stabilising-works-now-underway-in-nsw/); 2026 Transmission Annual Planning Report
 - Governments: [Victoria's data-centre rules, 22 Sep 2026](https://www.premier.vic.gov.au/we-need-data-centres-we-set-rules); [Premier's statement on the Western Renewables Link, 15 Sep 2026](https://www.premier.vic.gov.au/statement-premier-western-renewables-link); [NSW Data Centre Guidelines, Aug 2026](https://www.infrastructure.nsw.gov.au/media/4jlictae/id0073_nsw-data-centre_guidelines.pdf); [Prime Minister, AI standards, 15 Jul 2026](https://www.pm.gov.au/media/ai-australias-interests); [Minister for Industry, NEXTDC S7, 5 Dec 2025](https://www.minister.industry.gov.au/t-ayres/media/7-billion-infrastructure-deal-boost-ai-australia)
 - Companies: [NEXTDC FY26 results, 27 Aug 2026](https://www.asx.com.au/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=03131689); [Infratil CDC valuation, Jul 2026](https://www.asx.com.au/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=03111785); [Microsoft, 23 Apr 2026](https://news.microsoft.com/source/asia/features/investing-in-australias-ai-future/); [Amazon, 14 Jun 2025](https://www.aboutamazon.com/news/aws/amazon-data-center-investment-in-australia); [Blackstone on AirTrunk](https://www.blackstone.com/news/press/blackstone-announces-agreement-to-acquire-airtrunk-in-a-a24b-transaction/); [Firmus, Gunvor supply, Jun 2026](https://firmus.co/newsroom/firmus-secures-600-mw-energy-supply-agreement-in-south-australia-linked-to-1-2-gw-of-new-renewable-generation-and-battery-storage); [AirTrunk MEL2](https://airtrunk.com/location/mel2-melbourne/)
+- Operators, checked 1 Oct 2026: [Goodman SYD01, 3 Mar 2026](https://www.goodman.com/investor-centre/announcements-media/2026/syd01-construction); Microsoft project pages for [Cawley Road](https://local.microsoft.com/blog/cawley-road-datacentre-construction-overview/), [Woods Road](https://local.microsoft.com/blog/woods-road-datacentre-construction-overview/), [Garden Drive](https://local.microsoft.com/blog/garden-drive-datacentre-construction-overview/) and [Station Road](https://local.microsoft.com/blog/station-road-datacentres/); [STACK Melbourne](https://www.stackinfra.com/locations/asia-pacific/melbourne/); [STACK green financing, 23 Jul 2025](https://www.stackinfra.com/about/news-press/press-releases/stack-infrastructure-secures-aud-1-3-billion-in-green-financing-to-accelerate-expansion-of-mel01-hyperscale-campus-in-melbourne/); [Hickory MEL01C&D](https://www.hickory.com.au/project/mel01cd-2/); [Equinix SY9x](https://www.equinix.com/data-centers/asia-pacific-colocation/australia-colocation/sydney-data-centers/sy9x)
 - Market and cost: [Cushman & Wakefield APAC Data Centre Update H1 2026](https://digital.cushmanwakefield.com/apacdatacentreupdateh12026-07-2026-apac-regional-en-content-datacentres/); [Cushman & Wakefield Data Centre Construction Cost Guide 2026](https://digital.cushmanwakefield.com/constructioncostguide-03-2026-apac-regional-en-content-datacentres/20/); [Mandala, Aug 2026](https://mandalapartners.com/uploads/the-economic-contribution-of-the-data-centre-industry-in-australia.pdf); [CEFC / Baringa, Dec 2025](https://www.cefc.com.au/media/hs5ner3s/getting-the-balance-right-data-centres-and-the-energy-transition-full-report.pdf)
 - Projects: NSW Major Projects and Victorian ministerial permit registers; [w.media on AWS Glendenning](https://w.media/amazon-receives-approval-for-aud-2-17bn-sydney-data-centre/); [w.media on CDC Gregadoo](https://w.media/cdc-plans-aud-15bn-1-4gw-data-centre-campus-near-wagga-wagga/); [RenewEconomy on Uungula](https://reneweconomy.com.au/first-turbine-goes-up-at-states-only-wind-farm-under-construction/); [pv magazine on the Coalition's transmission pledge, 7 May 2026](https://www.pv-magazine-australia.com/?p=15914)
 
-*General information only, compiled from public sources as at 30 September 2026. It is not investment, financial or engineering advice for any specific project.*
+*General information only, compiled from public sources as at 30 September 2026 and updated 1 October 2026. It is not investment, financial or engineering advice for any specific project.*
