@@ -4,7 +4,8 @@
  * The map is built in the heavy-lift-pipeline project by `build.py --publish`,
  * which refuses to write anything if its own leak audit fails and records the
  * sha256 of what it wrote. This script checks the file against that hash and
- * against its project count, then copies it to src/lib/server/data/ with a
+ * against its project count (the features in its embedded map payload), then
+ * copies it to src/lib/server/data/ with a
  * trimmed sidecar (date and counts only). Commit and push to publish.
  *
  *   node scripts/sync-pipeline-map.mjs [path-to-pipeline-map.html]
@@ -20,11 +21,20 @@ async function main() {
 	const source = process.argv[2] ?? DEFAULT_SOURCE;
 	const html = await readFile(source, 'utf8');
 
-	// Counted from the rendered table so the figure on the landing page comes
-	// from the file itself, not from something we were told.
-	const projects = (html.match(/class="row/g) ?? []).length;
+	// Counted from the map payload embedded in the page (the published map
+	// has no table) so the figure on the landing page comes from the file
+	// itself, not from something we were told. The build serialises each
+	// feature as `"type": "Feature"`; the collection's own `"FeatureCollection"`
+	// does not match because the closing quote must follow `Feature`.
+	const start = html.indexOf('const DATA = ');
+	const end = start < 0 ? -1 : html.indexOf('\nconst TILES', start);
+	if (end < 0) {
+		console.error(`SYNC BLOCKED — no embedded map payload found in ${source}.`);
+		process.exit(1);
+	}
+	const projects = (html.slice(start, end).match(/"type": "Feature"/g) ?? []).length;
 	if (projects === 0) {
-		console.error(`SYNC BLOCKED — no project rows found in ${source}.`);
+		console.error(`SYNC BLOCKED — no project features found in ${source}.`);
 		process.exit(1);
 	}
 
@@ -44,7 +54,7 @@ async function main() {
 
 	if (meta.projects !== projects) {
 		console.error(
-			`SYNC BLOCKED — sidecar says ${meta.projects} projects but the HTML has ${projects}. ` +
+			`SYNC BLOCKED — sidecar says ${meta.projects} projects but the map payload has ${projects}. ` +
 				'Re-run build.py --publish.'
 		);
 		process.exit(1);
