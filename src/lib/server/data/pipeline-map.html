@@ -483,9 +483,9 @@ function detailHtml(p) {
     .map(([k, label]) => '<dt>' + esc(label) + '</dt><dd>' +
                          esc(detailValue(p, k)) + '</dd>')
     .join('');
-  // A town-centroid marker must not pass for the site itself.
+  // A centroid marker (town, postcode or street) must not pass for the site.
   const note = p.location_confidence === 'indicative'
-    ? 'Approximate location: a town centre, not the site itself.' : '';
+    ? 'Approximate location, not the exact site.' : '';
   // Only emit an anchor for a real http(s) URL — this blocks javascript:
   // and data: URLs from running on click, independently of the schema
   // validator that already enforces http(s) upstream.
@@ -606,6 +606,7 @@ function syncLabelVisibility() {
 }
 map.on('zoomend', syncLabelVisibility);
 map.on('moveend overlayadd', declutterLabels);
+map.on('viewreset', () => requestAnimationFrame(declutterLabels));
 syncLabelVisibility();
 
 document.querySelectorAll('aside input').forEach(i =>
