@@ -30,6 +30,13 @@ function lugTag(beam, lugId) {
   return (l && l.chart_lug_label) || String(lugId);
 }
 
+// Second beam-info line: overall length and supplier. Its own line because the Maxirig header
+// (name, tare, wings, rig mode) already fills the 940 px frame. Shared by all three renderers.
+function beamInfoLine2(beam) {
+  const len = `${beam.length_approx ? '≈ ' : ''}${(beam.length_mm / 1000).toFixed(2)} m`;
+  return `<text data-role="beam-info2" x="8" y="44" font-size="17" fill="#c0392b" font-weight="600">Length ${len} · Supplier: ${beam.supplier}</text>`;
+}
+
 // Side-elevation SVG of the offset lifting beam as a two-leg suspension, to true scale (mm).
 // The beam tilts to equilibrium; front (top) sling + rear leg (chain block) drawn from the hook.
 // view = { lugId, holeIndex, holeXMm, hole, loadKg, ok, su, chainBlockMm }
@@ -86,6 +93,7 @@ function renderDiagram(beam, view) {
     `font-family="system-ui, sans-serif" font-size="22">`);
   // beam info — fixed top-left corner so it never covers the model
   L.push(`<text x="8" y="20" font-size="19" fill="#c0392b" font-weight="700">${beam.id} · WLL ${beam.wll_t} T · Beam ${beam.self_weight_kg} kg · C/W ${beam.ballast_kg} kg</text>`);
+  L.push(beamInfoLine2(beam));
 
   // cleat geometry + sling attach points (slings reach the cleat holes, above the beam top).
   // GTC standard lifting lug — a REAL cleat confirmed on OLB-1: 200 mm gusset base, Ø40 hole 75 mm
@@ -291,6 +299,7 @@ function renderMaxirigDiagram(beam, view) {
   L2.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" font-family="system-ui, sans-serif" font-size="22">`);
   const wingKg = view.useWing ? ((beam.alt_charts && beam.alt_charts.wing_weights && beam.alt_charts.wing_weights.added_mass_kg) || 0) : 0;
   L2.push(`<text x="8" y="20" font-size="19" fill="#c0392b" font-weight="700">${beam.id} · ${beam.name} · Tare ${((beam.self_weight_kg + wingKg)/1000).toFixed(2)} t (C/W ${((beam.counterweight_kg + wingKg)/1000).toFixed(2)} t)${view.useWing ? ` · WING WEIGHTS +${(wingKg/1000).toFixed(1)} t` : ''}</text>`);
+  L2.push(beamInfoLine2(beam));
 
   // lug hole heights (real mm) — slings attach at the padeye holes, proportional to each lug's dia
   const frontDia = (selLug && selLug.dia_mm) || 40;
@@ -457,6 +466,7 @@ function renderMaxirigChainBlock(beam, view) {
     `data-minx="${minX.toFixed(3)}" data-maxx="${maxX.toFixed(3)}" data-miny="${minY.toFixed(3)}" data-maxy="${maxY.toFixed(3)}" ` +
     `font-family="system-ui, sans-serif" font-size="22">`);
   L2.push(`<text x="8" y="20" font-size="19" fill="#c0392b" font-weight="700">${beam.id} · ${beam.name} · Tare ${((beam.self_weight_kg + (view.wingKg || 0))/1000).toFixed(2)} t (C/W ${((beam.counterweight_kg + (view.wingKg || 0))/1000).toFixed(2)} t)${view.wingKg ? ` · WING WEIGHTS +${(view.wingKg/1000).toFixed(1)} t` : ''} · CHAIN-BLOCK RIG</text>`);
+  L2.push(beamInfoLine2(beam));
 
   // ---- slings (world coords): top sling to the front padeye, rear chain to the rear padeye ----
   L2.push(`<line data-role="leg-line" data-leg="front" x1="${SX(hookW.x)}" y1="${SY(hookW.y)}" x2="${SX(frontA.x)}" y2="${SY(frontA.y)}" stroke="${frontColor}" stroke-width="3"/>`);

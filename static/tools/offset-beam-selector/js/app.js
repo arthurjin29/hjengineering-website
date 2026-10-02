@@ -17,7 +17,7 @@ function hasWingOption(b) { return !!(b && b.alt_charts && b.alt_charts.wing_wei
 fetch('data/beams.json').then(r => r.json()).then(data => {
   BEAMS = data;
   const gtc = data.filter(b => b.maker !== 'Maxirig'), mr = data.filter(b => b.maker === 'Maxirig');
-  const opt = b => `<option value="${b.id}">${b.maker === 'Maxirig' ? b.id + ' — ' + b.name : b.id + ' (WLL ' + b.wll_t + ' T)'}</option>`;
+  const opt = b => `<option value="${b.id}">${b.maker === 'Maxirig' ? b.id + ' — ' + b.name : b.id + ' (WLL ' + b.wll_t + ' T)'} — ${b.supplier}</option>`;
   $('beam').innerHTML =
     `<optgroup label="GTC">${gtc.map(opt).join('')}</optgroup>` +
     (mr.length ? `<optgroup label="Maxirig">${mr.map(opt).join('')}</optgroup>` : '');
@@ -562,7 +562,7 @@ function runFind() {
     return;
   }
   const rows = list.map(r => `<tr class="findrow" data-beam="${r.beam.id}" data-lug="${r.lugId}" data-load="${loadKg}" tabindex="0">` +
-    `<td>${r.beam.id}</td><td>${r.beam.maker || 'GTC'}</td>` +
+    `<td>${r.beam.id}</td><td>${r.beam.maker || 'GTC'}</td><td>${r.beam.supplier}</td>` +
     `<td>${r.offsetM.toFixed(2)}</td>` +
     `<td>${Math.round(r.capacityKg).toLocaleString()}</td>` +
     `<td>${r.hole}</td>` +
@@ -570,7 +570,7 @@ function runFind() {
     // whole-number 59.9 -> "60" would print the very limit the row had to stay under.
     `<td>${r.rearAngleDeg.toFixed(1)}&#176;</td></tr>`).join('');
   el.innerHTML = `<table class="findtable"><thead><tr>` +
-    `<th>Beam</th><th>Maker</th><th>Lug offset (m)</th><th>Capacity (kg)</th><th>C/W hole</th><th>Rear angle</th>` +
+    `<th>Beam</th><th>Maker</th><th>Supplier</th><th>Lug offset (m)</th><th>Capacity (kg)</th><th>C/W hole</th><th>Rear angle</th>` +
     `</tr></thead><tbody>${rows}</tbody></table>`;
 }
 $('findform').addEventListener('submit', e => { e.preventDefault(); runFind(); });

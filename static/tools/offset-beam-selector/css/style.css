@@ -169,9 +169,10 @@ table.refchart tr.recrow > td.sel { background: #fdebc8; }
 #findresults { margin-top: 1rem; overflow-x: auto; }
 table.findtable { border-collapse: collapse; width: 100%; font-size: .9rem; }
 table.findtable thead th { background: var(--primary); color: #fff; padding: .5rem .7rem; text-align: right; white-space: nowrap; }
-table.findtable thead th:first-child, table.findtable thead th:nth-child(2) { text-align: left; }
+table.findtable thead th:first-child, table.findtable thead th:nth-child(2), table.findtable thead th:nth-child(3) { text-align: left; }
 table.findtable td { padding: .45rem .7rem; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
-table.findtable td:first-child, table.findtable td:nth-child(2) { text-align: left; }
+table.findtable td:first-child, table.findtable td:nth-child(2), table.findtable td:nth-child(3) { text-align: left; }
+table.findtable td:nth-child(3) { white-space: normal; }
 table.findtable td:first-child { font-weight: 600; color: var(--primary); }
 tr.findrow { cursor: pointer; }
 tr.findrow:hover { background: #eaf2f8; }
