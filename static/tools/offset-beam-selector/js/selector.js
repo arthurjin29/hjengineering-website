@@ -123,6 +123,105 @@ function balanceBallast(beam, lugId, loadKg, wingKg) {
   };
 }
 
+// "Certified" is said only where a certificate is on file (wll_source 'certified'). A maker-stated
+// WLL (MR13264) never borrows the word — HJE does not certify these beams.
+function capacityLabel(beam) { return beam.wll_source === 'certified' ? 'certified capacity' : 'capacity'; }
+
+// Maxirig fixed-sling pick (Arthur 2026-10-06). The chart's own pick (least WLL-capped capacity that
+// carries the load; strict <, first in hole order wins a tie — the pre-levelling rule exactly) stands,
+// EXCEPT on a beam that opts in with `level_pick: true` (MR13264 only), where the moment model may
+// override it when the chart pick under-balances by more than 2 x the CoG fit RMS:
+//  - levelled: recommend the LEVEL position instead — the carrying position with the smallest
+//    balancing load still >= the load (slight over-balance tilts rear-down, never forward);
+//  - tiltsForward: no carrying position levels the load, so the chart pick stands and the rear sling
+//    goes slack — the beam hangs nose-down from the lug (panel shows CAUTION).
+// Opt-in, not a tolerance alone: on charts that ARE the maker's balance chart the fitted model misses
+// individual cells by more than 2 x RMS (MX#OLB4 lug A 12-14 by 45 kg vs 36; MR11791 lug 3 A by 389
+// vs 384), and there the certified chart must stand untouched. A capped-tie chart pick that sits
+// REARWARD of the level position over-balances, so it never counts as tilting.
+function levelPick(beam, lugId, loadKg, wingKg) {
+  const col = chartFor(beam, wingKg > 0)[String(lugId)] || {};
+  const wllKg = beam.wll_t * 1000, lugX = lugById(beam, lugId).x_mm;
+  const hasMoment = beam.beam_cog_x_mm != null;   // no CoG = no moment model, so no level claim either way
+  let level = null, chart = null, maxGovKg = 0, maxLevelKg = null, maxLevelHole = null;
+  beam.ballast.holes.forEach((hole, i) => {
+    const cellKg = col[hole]; if (cellKg == null) return;   // struck out / NO LIFT
+    const govKg = Math.min(cellKg, wllKg);
+    const balancesKg = hasMoment ? balancingLoad(beam, lugId, i, wingKg) : null;
+    maxGovKg = Math.max(maxGovKg, govKg);
+    if (hasMoment && (maxLevelKg === null || balancesKg > maxLevelKg)) { maxLevelKg = balancesKg; maxLevelHole = hole; }
+    if (govKg < loadKg) return;
+    const holeXMm = holeXAt(beam, i);
+    const p = { hole, holeIndex: i, holeXMm, distFromLugMm: holeXMm - lugX, cellKg, govKg, balancesKg };
+    if (!chart || govKg < chart.govKg) chart = p;
+    if (hasMoment && balancesKg >= loadKg - 0.5 && (!level || balancesKg < level.balancesKg)) level = p;
+  });
+  const tolKg = Math.max(0.5, 2 * (beam.cog_fit_rms_kg || 0));
+  const chartTiltsForward = !!beam.level_pick && !!chart && hasMoment && (loadKg - chart.balancesKg) > tolKg;
+  const levelled = chartTiltsForward && !!level;
+  return { pick: levelled ? level : chart, levelled, tiltsForward: chartTiltsForward && !level,
+           level, chartPick: chart, maxGovKg, maxLevelKg, maxLevelHole, hasMoment, tolKg,
+           chartTiltsForward, liftable: !!chart };
+}
+
+// Fixed-sling result panel for a Maxirig beam, from levelPick's result. Pure (no DOM) so the wording
+// is testable; app.js only assigns it. cls: 'ok' | 'warn' (CAUTION: no rated position levels the load,
+// so at the chart position the rear sling goes slack and the beam hangs nose-down) | 'fail'.
+function maxirigPanel(b, lugId, load, g, res, useWing) {
+  const ok = res.liftable, caution = ok && res.tiltsForward;
+  const sl = b.rigging.sling_lengths.find(s => s.lug === lugId) || {};
+  const adjustable = !!b.rigging.rear_deg_adjustable;   // lengths follow the chosen rear angle (g)
+  const fl = adjustable ? g.frontLen : sl.front_mm, rl = adjustable ? g.rearLen : sl.rear_mm;
+  const c = b.cert || {};
+  const wllKg = b.wll_t * 1000;
+  const pick = res.pick, cp = res.chartPick;
+  const lugTxt = lugLabel(b, lugId);   // chart tag (A-E) where the maker letters its lugs
+  const capTxt = capacityLabel(b);     // 'certified capacity' only where a certificate is on file
+  const kg = v => Math.round(v).toLocaleString();
+  const msgs = [];
+  if (!ok) msgs.push(`Load ${load.toLocaleString()} kg exceeds the ${capTxt} at lug ${lugTxt} (max ${res.maxGovKg.toLocaleString()} kg${useWing ? ', wing-weights chart' : ''}). Try a lower lug or move the load closer.`);
+  if (sl.conflict) msgs.push(`Lug ${lugTxt} rear sling length is UNRESOLVED: ${sl.conflict}`);
+  if (useWing) msgs.push('Wing-weights chart in use (2×750 kg wings fitted). Standard chart does not apply.');
+  const util = ok ? (load / pick.govKg * 100).toFixed(0) + '%' : '—';
+  const levKg = ok ? levellingKg(b, lugId, pick.holeIndex, useWing ? ((b.alt_charts && b.alt_charts.wing_weights && b.alt_charts.wing_weights.added_mass_kg) || 0) : 0) : null;
+  const levTxt = levKg != null ? ` (levelling ${levKg.toLocaleString()} kg)` : '';
+  const hang = `the rear sling goes slack and the beam hangs nose-down from lug ${lugTxt}`;
+  let levelTxt = '';
+  if (res.levelled) {
+    levelTxt = `<br/>Chart minimum is position ${cp.hole} (${kg(cp.cellKg)} kg) — there ${hang}.`;
+  } else if (caution) {
+    levelTxt = `<br/>No position levels ${load.toLocaleString()} kg at lug ${lugTxt} — the most the counterweight levels is ${kg(res.maxLevelKg)} kg (position ${res.maxLevelHole}). At position ${pick.hole} ${hang}.`;
+  }
+  const html =
+    `<strong>${!ok ? 'NOT OK' : caution ? 'CAUTION' : 'OK'}</strong> &nbsp; ` +
+    (ok ? `Counterweight position <strong>${pick.hole}</strong> — ${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTxt}` +
+          (res.levelled ? ` (beam level — balances ${kg(pick.balancesKg)} kg)` : '')
+        : 'No rated counterweight position carries this load') +
+    `<br/>${capTxt[0].toUpperCase() + capTxt.slice(1)} (lug ${lugTxt}${useWing ? ', wing weights' : ''}): cell <strong>${ok ? pick.cellKg.toLocaleString() + ' kg' : '—'}</strong>${levTxt} · lug max ${res.maxGovKg.toLocaleString()} kg · WLL ${b.wll_t} t${ok && pick.cellKg > wllKg ? ' (capped at WLL)' : ''} · util ${util}` +
+    levelTxt +
+    `<br/>${adjustable ? 'Slings' : 'Fixed slings'} — front ${fl ? (fl/1000).toFixed(2) + ' m @ ' + (g.valid ? g.frontDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; rear ${rl ? (rl/1000).toFixed(2) + ' m @ ' + (g.valid ? g.rearDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; hook ${g.valid ? Math.round(g.hookOffsetMm) + ' mm rear of lug' : '—'}` +
+    // Only assert certification when a certificate is actually on file. Beams certified by the
+    // supplier without one recorded here simply say nothing — never a defaulted standard number.
+    (c.standard ? `<br/><span class="muted">Certified to ${c.standard} · proof cert ${c.proof_cert_no || '—'}${c.proof_date ? ' (' + c.proof_date + ')' : ''} · ${c.model_no || ''} · dwg ${c.drawing_no || '—'}</span>` : '') +
+    (msgs.length ? `<div class="muted">${msgs.join('<br/>')}</div>` : '');
+  return { cls: !ok ? 'fail' : caution ? 'warn' : 'ok', html };
+}
+
+// Levelling capacity (Arthur 2026-10-06, shown in brackets next to the chart capacity): the most load
+// that both sits within the chart cell (capped at WLL) AND keeps the beam level at that position —
+// min(cell, moment-calc balancing load), rounded to the kg, never below 0. Only for beams that opt in
+// to the level pick (`level_pick`, MR13264), and only where it is LOWER than the cell by more than the
+// model's own fit error (2 x RMS) — where the chart already is the balance load (MR13264 lug 1) the
+// bracket would just repeat it. null = print no bracket.
+function levellingKg(beam, lugId, holeIndex, wingKg) {
+  if (!beam.level_pick || beam.beam_cog_x_mm == null) return null;
+  const cellKg = (chartFor(beam, wingKg > 0)[String(lugId)] || {})[beam.ballast.holes[holeIndex]];
+  if (cellKg == null) return null;
+  const capKg = Math.min(cellKg, beam.wll_t * 1000);
+  const levKg = Math.max(0, Math.round(Math.min(capKg, balancingLoad(beam, lugId, holeIndex, wingKg))));   // rounded like every other kg the panel prints
+  return (capKg - levKg) > Math.max(0.5, 2 * (beam.cog_fit_rms_kg || 0)) ? levKg : null;
+}
+
 // Structural ceiling = the beam WLL. The per-cell GTC chart value is informational only (a guide).
 // Maxirig branch: the per-cell value is a CERTIFIED capacity (governing), still capped at WLL.
 function capacityCheck(beam, lugId, hole, loadKg, useWing) {
@@ -151,19 +250,32 @@ function capacityCheck(beam, lugId, hole, loadKg, useWing) {
 // rear sling (rear_mm) at the rear lift lug, beam level when loaded. The hook is the two-circle
 // intersection above the beam. Returns both leg lengths, leg angles from horizontal, the hook
 // position (datum x, height above the lug line) and the hook offset (toward rear) of the front lug.
-function fixedSlingGeometry(beam, lugId) {
+// A beam whose maker limits the rear angle rather than fixing the slings (MR13264, GA "MAX 60°")
+// carries rigging.rear_deg_adjustable {default, min, max}: the front leg hangs plumb over the lug and
+// both lengths follow from the chosen rear angle (Arthur 2026-10-06: default = the printed pairs at 60°, never above 60°, may be reduced).
+// Every other beam ignores rearDegIn and keeps its stored sling pair.
+function rearDegFor(beam, rearDeg) {
+  const a = beam.rigging && beam.rigging.rear_deg_adjustable;
+  if (!a) return null;
+  const d = (rearDeg == null || !isFinite(rearDeg)) ? a.default : Number(rearDeg);
+  return Math.max(a.min, Math.min(a.max, d));
+}
+function fixedSlingGeometry(beam, lugId, rearDegIn) {
   const lug = lugById(beam, lugId);
   const sl = (beam.rigging && beam.rigging.sling_lengths || []).find(s => s.lug === Number(lugId));
-  if (!lug || !sl) return { valid: false };
+  const adj = rearDegFor(beam, rearDegIn);
+  if (!lug || (!sl && adj === null)) return { valid: false };
   const xL = lug.x_mm, xR = beam.back_lug_x_mm, R = xR - xL;
-  const frontLen = sl.front_mm, rearLen = sl.rear_mm;
+  const t = adj === null ? 0 : adj * Math.PI / 180;
+  const frontLen = adj === null ? sl.front_mm : R * Math.tan(t);
+  const rearLen = adj === null ? sl.rear_mm : R / Math.cos(t);
   const hookX = xL + (R * R + frontLen * frontLen - rearLen * rearLen) / (2 * R);
   const disc = frontLen * frontLen - (hookX - xL) * (hookX - xL);
   const valid = R > 0 && disc >= 0;
   const hookY = valid ? Math.sqrt(disc) : 0;
   const frontDeg = Math.atan2(hookY, Math.abs(hookX - xL)) * 180 / Math.PI;
   const rearDeg = Math.atan2(hookY, Math.abs(xR - hookX)) * 180 / Math.PI;
-  return { valid, frontLen, rearLen, frontDeg, rearDeg, hookX, hookY, hookOffsetMm: hookX - xL };
+  return { valid, frontLen, rearLen, frontDeg, rearDeg, hookX, hookY, hookOffsetMm: hookX - xL, rearDegSet: adj };
 }
 
 function slingGeometry(beam, lugId, angleDeg) {
@@ -299,7 +411,7 @@ function evaluateHole(beam, lugId, holeIndex, loadKg, angleDeg, wingKg) {
   if (capacity.reason === 'over_wll') messages.push('Load exceeds beam WLL (' + capacity.wllKg + ' kg).');
   if (capacity.reason === 'not_rated') messages.push('Position ' + hole + ' is struck out for lug ' +
     lugLabel(beam, lugId) + ' on the maker chart — this combination must not be used. Choose a rated position.');
-  if (capacity.reason === 'over_chart') messages.push('Load exceeds the certified capacity for lug ' +
+  if (capacity.reason === 'over_chart') messages.push('Load exceeds the ' + capacityLabel(beam) + ' for lug ' +
     lugLabel(beam, lugId) + ' at position ' + hole + ' (' + capacity.governingKg.toFixed(0) + ' kg).');
   if (!supported) {
     // Only send the operator rearward if a RATED position actually balances more than this one —
@@ -329,7 +441,7 @@ function selectConfig(beam, lugId, loadKg, angleDeg) {
   if (capacity.reason === 'over_wll') messages.push('Load exceeds beam WLL (' + capacity.wllKg + ' kg).');
   if (capacity.reason === 'not_rated') messages.push('No rated counterweight position at lug ' + lugLabel(beam, lugId) +
     ' balances this load — the positions that would balance it are struck out on the maker chart.');
-  if (capacity.reason === 'over_chart') messages.push('Load exceeds the certified capacity for lug ' +
+  if (capacity.reason === 'over_chart') messages.push('Load exceeds the ' + capacityLabel(beam) + ' for lug ' +
     lugLabel(beam, lugId) + ' at position ' + balance.hole + ' (' + capacity.governingKg.toFixed(0) + ' kg).');
   if (!balance.supported) messages.push(
     'Counterweight cannot balance this load at this lug — even the rear-most position only balances ' +
@@ -357,7 +469,8 @@ function maxWllAtLug(beam, lugId, wingKg) {
 
 // Build the reference load-chart table HTML for a beam (pure — no DOM).
 // Rows = counterweight positions printed top-to-bottom as on the source chart:
-// Maxirig prints rear-most / max-capacity first (holes reversed); GTC uses native order.
+// Maxirig prints rear-most / max-capacity first: reversed where positions ascend from the load end
+// (most of the fleet), native where A is already the rear-most (MR11022, MR13264). GTC: native order.
 // Columns = rated lugs. A cell shows its capacity in kg (thousands separator), or a special
 // text (PIN ONLY / DO NOT USE / capacity note) from chart_cells_note, or "Not To Be Used" for
 // an unrated (null) cell with no note. opts: { useWing, selLugId, recHole } — selLugId shades
@@ -369,10 +482,16 @@ function chartTableHtml(beam, opts) {
   const notes = (alt ? alt.chart_cells_note : beam.chart_cells_note) || {};
   const isMax = beam.maker === 'Maxirig';
   const lugIds = Object.keys(chart);
-  const holes = isMax ? beam.ballast.holes.slice().reverse() : beam.ballast.holes.slice();
+  const nH = beam.ballast.holes.length;
+  const ascending = holeXAt(beam, nH - 1) > holeXAt(beam, 0);
+  const holes = (isMax && ascending) ? beam.ballast.holes.slice().reverse() : beam.ballast.holes.slice();
+  const cert = beam.wll_source === 'certified';
   const header = isMax
-    ? (alt ? 'Certified wing-weights chart (governing)' : 'Certified capacity chart (governing)')
+    ? (alt ? (cert ? 'Certified wing-weights chart' : 'Wing-weights chart')
+           : (cert ? 'Certified capacity chart' : 'Capacity chart')) + ' (governing)' +
+      (beam.level_pick ? ' — levelling capacity in brackets' : '')
     : 'GTC chart (guide only — moment calc governs balance)';
+  const wKg = alt ? (alt.added_mass_kg || 0) : 0;
   const selLug = opts.selLugId != null ? String(opts.selLugId) : null;
   const recHole = opts.recHole != null ? String(opts.recHole) : null;
   const cell = (lug, h) => {
@@ -380,7 +499,8 @@ function chartTableHtml(beam, opts) {
     if (note) return { txt: note, special: true };
     const v = chart[lug] ? chart[lug][h] : undefined;
     if (v == null) return { txt: 'Not To Be Used', special: true };
-    return { txt: Number(v).toLocaleString(), special: false };
+    const lev = isMax ? levellingKg(beam, Number(lug), beam.ballast.holes.indexOf(h), wKg) : null;
+    return { txt: Number(v).toLocaleString() + (lev != null ? `<br/><span class="lev">(${lev.toLocaleString()})</span>` : ''), special: false };
   };
   const thead = '<tr><th class="poscol">C/W Pos</th>' +
     lugIds.map(l => `<th class="${l === selLug ? 'sel' : ''}">Lug ${lugLabel(beam, l)}</th>`).join('') + '</tr>';
@@ -438,4 +558,4 @@ function findSuitableBeams(beams, loadKg, offsetM) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
+if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, levelPick, levellingKg, capacityLabel, maxirigPanel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };

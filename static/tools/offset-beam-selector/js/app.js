@@ -1,7 +1,7 @@
 let BEAMS = [];
 const $ = id => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const state = { beam: null, lugId: 1, loadKg: 10000, headMm: 3000, holeIndex: null, chainBlockMm: 3000, fixedTailMm: 0, detached: false, wing: false, rigMode: 'fixed', rig: null, frame: null };
+const state = { beam: null, lugId: 1, loadKg: 10000, headMm: 3000, holeIndex: null, chainBlockMm: 3000, fixedTailMm: 0, detached: false, wing: false, rigMode: 'fixed', rig: null, frame: null, rearDeg: null };
 
 // Structural beam mass: Maxirig self_weight_kg bundles the counterweight, so use beam_only_kg.
 function structMass(beam) { return beam.maker === 'Maxirig' ? beam.beam_only_kg : beam.self_weight_kg; }
@@ -50,6 +50,7 @@ function renderLugs() {
 // Beam change: reset transient state + panels so a GTC/Maxirig switch never shows stale controls.
 function onBeamChange() {
   state.wing = false; if ($('wing')) $('wing').checked = false;
+  resetRearDeg(currentBeam());
   state.rigMode = 'fixed';
   const fx = document.querySelector('input[name=rigmode][value=fixed]'); if (fx) fx.checked = true;
   resetPanels();
@@ -149,33 +150,13 @@ function calc() {
   render();
   refreshChart({ selLugId: state.lugId, recHole: state.beam.ballast.holes[state.holeIndex], useWing: wingKg() > 0 });
 }
-// Maxirig fixed-sling mode → certified-chart calc; GTC and Maxirig chain-block → moment-calc path.
+// Maxirig fixed-sling mode → chart capacity + levelled C/W; GTC and Maxirig chain-block → moment-calc path.
 $('f').addEventListener('submit', e => {
   e.preventDefault();
   (isMaxirig() && state.rigMode !== 'chainblock') ? calcMaxirig() : calc();
 });
 
-// ---- Maxirig: fixed-sling rigging, certified-chart capacity ----
-// Pick the rated counterweight position with the LEAST certified capacity that still carries the
-// load — matches "move the C/W forward for lighter loads" on monotonic charts and stays
-// conservative on non-monotonic ones (e.g. MR10579 lug 3).
-function maxirigPick(b, lugId, loadKg, useWing) {
-  const chart = (useWing && b.alt_charts) ? b.alt_charts.wing_weights.capacity_kg : b.capacity_kg;
-  const wllKg = b.wll_t * 1000;
-  const col = chart[String(lugId)] || {};
-  let pick = null, maxGovKg = 0;
-  b.ballast.holes.forEach((letter, i) => {
-    const cap = col[letter]; if (cap == null) return;
-    const gov = Math.min(cap, wllKg);
-    maxGovKg = Math.max(maxGovKg, gov);
-    if (gov >= loadKg && (pick === null || gov < pick.govKg)) {
-      const holeXMm = b.ballast.holes_x_mm ? b.ballast.holes_x_mm[i] : b.ballast.first_hole_x_mm + b.ballast.pitch_mm * i;
-      const lugX = b.offset_lugs.find(l => l.id === lugId).x_mm;
-      pick = { hole: letter, holeIndex: i, holeXMm, distFromLugMm: holeXMm - lugX, cellKg: cap, govKg: gov };
-    }
-  });
-  return { pick, maxGovKg, liftable: !!pick };
-}
+// ---- Maxirig: fixed-sling rigging, chart capacity, levelled counterweight (selector.levelPick) ----
 
 function calcMaxirig() {
   state.beam = currentBeam();
@@ -184,16 +165,35 @@ function calcMaxirig() {
   $('controls').hidden = true;
   $('fixedrig').hidden = false;
   $('wingtoggle').hidden = !hasWingOption(state.beam);
+  $('reardegctl').hidden = !rearDegWindow(state.beam);
   if (!(state.loadKg > 0)) { rejectLoad(); return; }
   renderMaxirig();
 }
 
+// Rear sling angle (beams whose maker gives a rear-angle LIMIT, not a sling set — MR13264): the
+// slider range is the beam's own window, it starts at the beam's default (MR13264: 60°, the printed slings) on every beam change, and
+// moving it re-renders the fixed-sling result live.
+function rearDegWindow(b) { return (b && b.rigging && b.rigging.rear_deg_adjustable) || null; }
+function resetRearDeg(b) {
+  const a = rearDegWindow(b);
+  state.rearDeg = a ? a.default : null;
+  if (!a) return;
+  $('reardeg').min = a.min; $('reardeg').max = a.max; $('reardeg').value = a.default;
+  $('reardegval').textContent = a.default + '°';
+}
+$('reardeg').addEventListener('input', () => {
+  state.rearDeg = Number($('reardeg').value);
+  $('reardegval').textContent = state.rearDeg + '°';
+  if (state.beam && state.beam === currentBeam() && !$('fixedrig').hidden && state.loadKg > 0) renderMaxirig();
+});
+
 function renderMaxirig() {
   const b = state.beam, lugId = state.lugId, load = state.loadKg;
   const useWing = hasWingOption(b) && state.wing;
-  const g = window.fixedSlingGeometry(b, lugId);
-  const res = maxirigPick(b, lugId, load, useWing);
-  const view = { maker: 'Maxirig', lugId, loadKg: load, g, pick: res.pick || {}, useWing, ok: res.liftable };
+  const g = window.fixedSlingGeometry(b, lugId, state.rearDeg);
+  const res = window.levelPick(b, lugId, load, wingKg(b));
+  const view = { maker: 'Maxirig', lugId, loadKg: load, g, pick: res.pick || {}, useWing, ok: res.liftable,
+    caution: res.liftable && res.tiltsForward };
   updateMaxirigPanel(b, lugId, load, g, res, useWing);
   renderBeamFlags();
   $('diagram').innerHTML = window.renderDiagram(b, view);
@@ -202,28 +202,9 @@ function renderMaxirig() {
 }
 
 function updateMaxirigPanel(b, lugId, load, g, res, useWing) {
-  const panel = $('result');
-  const ok = res.liftable;
-  panel.className = ok ? 'ok' : 'fail';
-  const sl = b.rigging.sling_lengths.find(s => s.lug === lugId) || {};
-  const c = b.cert || {};
-  const wllKg = b.wll_t * 1000;
-  const pick = res.pick;
-  const msgs = [];
-  const lugTxt = window.lugLabel(b, lugId);   // chart tag (A-E) where the maker letters its lugs
-  if (!ok) msgs.push(`Load ${load.toLocaleString()} kg exceeds the certified capacity at lug ${lugTxt} (max ${res.maxGovKg.toLocaleString()} kg${useWing ? ', wing-weights chart' : ''}). Try a lower lug or move the load closer.`);
-  if (sl.conflict) msgs.push(`Lug ${lugTxt} rear sling length is UNRESOLVED: ${sl.conflict}`);
-  if (useWing) msgs.push('Wing-weights chart in use (2×750 kg wings fitted). Standard chart does not apply.');
-  const util = ok ? (load / pick.govKg * 100).toFixed(0) + '%' : '—';
-  panel.innerHTML =
-    `<strong>${ok ? 'OK' : 'NOT OK'}</strong> &nbsp; ` +
-    (ok ? `Counterweight position <strong>${pick.hole}</strong> — ${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTxt}` : 'No rated counterweight position carries this load') +
-    `<br/>Certified capacity (lug ${lugTxt}${useWing ? ', wing weights' : ''}): cell <strong>${ok ? pick.cellKg.toLocaleString() + ' kg' : '—'}</strong> · lug max ${res.maxGovKg.toLocaleString()} kg · WLL ${b.wll_t} t${ok && pick.cellKg > wllKg ? ' (capped at WLL)' : ''} · util ${util}` +
-    `<br/>Fixed slings — front ${sl.front_mm ? (sl.front_mm/1000).toFixed(2) + ' m @ ' + (g.valid ? g.frontDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; rear ${sl.rear_mm ? (sl.rear_mm/1000).toFixed(2) + ' m @ ' + (g.valid ? g.rearDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; hook ${g.valid ? Math.round(g.hookOffsetMm) + ' mm rear of lug' : '—'}` +
-    // Only assert certification when a certificate is actually on file. Beams certified by the
-    // supplier without one recorded here simply say nothing — never a defaulted standard number.
-    (c.standard ? `<br/><span class="muted">Certified to ${c.standard} · proof cert ${c.proof_cert_no || '—'}${c.proof_date ? ' (' + c.proof_date + ')' : ''} · ${c.model_no || ''} · dwg ${c.drawing_no || '—'}</span>` : '') +
-    (msgs.length ? `<div class="muted">${msgs.join('<br/>')}</div>` : '');
+  const panel = $('result'), p = window.maxirigPanel(b, lugId, load, g, res, useWing);
+  panel.className = p.cls;
+  panel.innerHTML = p.html;
 }
 $('wing').addEventListener('change', () => {
   state.wing = $('wing').checked;
@@ -261,7 +242,7 @@ function chartGuideLine(ev) {
   const note = agree ? 'matches moment calc'
     : `chart pos ${cg.hole} vs moment-calc hole ${ev.hole} — moment calc governs`;
   const src = state.beam.maker === 'Maxirig'
-    ? (wingKg() ? 'Wing-weights chart' : 'Certified chart') : 'GTC chart';
+    ? (wingKg() ? 'Wing-weights chart' : state.beam.wll_source === 'certified' ? 'Certified chart' : 'Maker chart') : 'GTC chart';
   return `<br/><span class="muted">${src} (guide): pos ${cg.hole} ≈ ${cg.cap} kg — ${note}</span>`;
 }
 
@@ -357,14 +338,15 @@ function render() {
 }
 
 // Persistent, beam-level provenance warnings (independent of the per-calc result panel).
-// Two WLL provenances: 'certified' (a certificate is on file — OLB-22, the Maxirig fleet, and the
-// supplier-certified DRH asset) and 'inferred_from_chart' (back-calculated by us from the GTC chart
-// maximum). The GTC wording below belongs ONLY to the inferred path — that provenance exists on GTC
-// beams alone, and naming the wrong maker in a safety message is itself a false statement. A beam
-// needing extra confirm-before-use wording carries it in its own `flags`, not here.
+// Three WLL provenances: 'certified' (a certificate is on file — OLB-22, the Maxirig fleet, and the
+// supplier-certified DRH asset), 'inferred_from_chart' (back-calculated by us from the GTC chart
+// maximum) and 'maker_stated' (the maker's own printed WLL; no certification statement is made —
+// Arthur 2026-10-06, MR13264). The GTC wording below belongs ONLY to the inferred path — that
+// provenance exists on GTC beams alone, and naming the wrong maker in a safety message is itself a
+// false statement. A beam needing extra confirm-before-use wording carries it in its own `flags`.
 function renderBeamFlags() {
   const b = state.beam, out = [];
-  if (b.wll_source !== 'certified') {
+  if (b.wll_source === 'inferred_from_chart') {
     out.push(`WLL ${b.wll_t} T is inferred from the GTC chart maximum — confirm against the GTC certificate before use.`);
   }
   if (b.geometry_confidence === 'low') {
@@ -375,7 +357,7 @@ function renderBeamFlags() {
   if (b.maker === 'Maxirig') {
     (b.flags || []).forEach(f => out.push(f));
     if (state.rigMode === 'chainblock') {
-      out.push('Chain-block rigging is not the Maxirig-documented sling set — capacities per certified chart; CPEng to verify rigging.');
+      out.push(`Chain-block rigging is not the Maxirig-documented sling set — capacities per ${b.wll_source === 'certified' ? 'certified' : 'maker'} chart; CPEng to verify rigging.`);
       if (state.rig && state.rig.rearAssumed) out.push('Rear-leg angle window assumed 30–60° — not stated by Maxirig.');
       // Wings ARE modelled on this path (mass rides the C/W, amended chart governs). State which
       // case is active so the operator can check it against what is physically bolted on.
@@ -421,7 +403,7 @@ function failReason(su, ev, acc) {
     case 'invalid_load': return 'enter a valid load';
     case 'not_rated':    return 'position struck out on the maker chart';
     case 'over_wll':     return 'load over beam WLL';
-    case 'over_chart':   return 'load over certified chart capacity';
+    case 'over_chart':   return 'load over ' + (state.beam.wll_source === 'certified' ? 'certified ' : '') + 'chart capacity';
   }
   if (!ev.inRange) return 'counterweight under-balances the load';
   if (!su.valid) return 'rear leg cannot reach';

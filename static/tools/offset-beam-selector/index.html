@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Offset Lifting Beam Selector — HJ Engineering</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23123a5f'/%3E%3Ctext x='8' y='12' font-size='11' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='700'%3EH%3C/text%3E%3C/svg%3E"/>
-<link rel="stylesheet" href="css/style.css?v=53"/>
+<link rel="stylesheet" href="css/style.css?v=54"/>
 </head>
 <body>
 <header class="page-head">
@@ -34,6 +34,7 @@
     <div id="beamflags" hidden></div>
     <div id="fixedrig" hidden>
       <label id="wingtoggle" hidden><input type="checkbox" id="wing"/> Wing weights fitted (2&times;750&nbsp;kg) &mdash; use the amended load chart</label>
+      <div id="reardegctl" hidden style="margin:.3rem 0"><label>Rear sling angle <input id="reardeg" type="range" min="30" max="60" step="1" value="60"/> <span id="reardegval">60°</span> <span class="muted">(max 60°)</span></label></div>
     </div>
     <div id="controls" class="card" hidden>
       <label style="display:block;margin:.3rem 0">Top sling (front) <input id="ts" type="range" step="50"/> <span id="tsval">—</span></label>
@@ -58,8 +59,8 @@
   </div>
 </div>
 <footer class="disclaimer">Indicative selection aid. Verify against the beam load chart / certificate before lifting.</footer>
-<script src="js/selector.js?v=53"></script>
-<script src="js/diagram.js?v=53"></script>
-<script src="js/app.js?v=53"></script>
+<script src="js/selector.js?v=54"></script>
+<script src="js/diagram.js?v=54"></script>
+<script src="js/app.js?v=54"></script>
 </body>
 </html>

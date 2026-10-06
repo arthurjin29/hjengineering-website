@@ -76,9 +76,12 @@ button[type=submit]:hover { background: var(--primary-light); }
 #result:empty { display: none; }
 #result.ok   { border-left-color: var(--success); background: #f2fbf5; }
 #result.fail { border-left-color: var(--danger);  background: #fdedec; }
+#result.warn { border-left-color: var(--accent);  background: #fef9e7; }
 #result strong { color: var(--primary); }
 #result.ok   strong:first-child { color: var(--success); }
 #result.fail strong:first-child { color: var(--danger); }
+#result.warn strong:first-child { color: #b9770e; }
+.refchart .lev { font-size: .82em; color: var(--text-light); }   /* levelling capacity (MR13264) under the chart value */
 
 .muted { color: var(--text-light); font-size: .88rem; }
 

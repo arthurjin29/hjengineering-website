@@ -12,10 +12,16 @@ function ballastRail(beam) {
   const holeX = i => b.holes_x_mm ? b.holes_x_mm[i] : b.first_hole_x_mm + b.pitch_mm * i;
   const span = b.span_holes || 1;
   const halfSpan = (span - 1) / 2 * (b.pitch_mm || 0);
-  if (span <= 1) return { xs: b.holes.map((_, i) => holeX(i)), labels: b.holes.slice(), span, halfSpan };
+  const posXs = b.holes.map((_, i) => holeX(i));
+  if (span <= 1) return { xs: posXs, labels: b.holes.slice(), labelXs: posXs, span, halfSpan };
+  // The pin rail runs the way the positions do: MX#OLB4's "1-3" is front-most, MR13264's A rear-most.
+  const dir = posXs[posXs.length - 1] >= posXs[0] ? 1 : -1;
   const xs = Array.from({ length: b.holes.length + span - 1 },
-                        (_, k) => holeX(0) - halfSpan + k * b.pitch_mm);
-  return { xs, labels: xs.map((_, k) => String(k + 1)), span, halfSpan };   // pins numbered as on the GA
+                        (_, k) => posXs[0] - dir * halfSpan + k * dir * b.pitch_mm);
+  // Label what the GA labels: MR13264 letters the POSITIONS (block centres, between the pins);
+  // MX#OLB4 numbers the PINS 1..n.
+  if (b.labels_at === 'positions') return { xs, labels: b.holes.slice(), labelXs: posXs, span, halfSpan };
+  return { xs, labels: xs.map((_, k) => String(k + 1)), labelXs: xs, span, halfSpan };   // pins numbered as on the GA
 }
 
 // Pin x positions for the counterweight at a given position CoG: the two ends of the span where a
@@ -32,9 +38,12 @@ function lugTag(beam, lugId) {
 
 // Second beam-info line: overall length and supplier. Its own line because the Maxirig header
 // (name, tare, wings, rig mode) already fills the 940 px frame. Shared by all three renderers.
-function beamInfoLine2(beam) {
+// `warn` (optional) appends an amber note on the same line — the fixed-sling view uses it for CAUTION,
+// because the beam is always DRAWN level there.
+function beamInfoLine2(beam, warn) {
   const len = `${beam.length_approx ? '≈ ' : ''}${(beam.length_mm / 1000).toFixed(2)} m`;
-  return `<text data-role="beam-info2" x="8" y="44" font-size="17" fill="#c0392b" font-weight="600">Length ${len} · Supplier: ${beam.supplier}</text>`;
+  return `<text data-role="beam-info2" x="8" y="44" font-size="17" fill="#c0392b" font-weight="600">Length ${len} · Supplier: ${beam.supplier}` +
+    (warn ? `<tspan data-role="caution" fill="#b9770e"> · ${warn}</tspan>` : '') + `</text>`;
 }
 
 // Side-elevation SVG of the offset lifting beam as a two-leg suspension, to true scale (mm).
@@ -283,6 +292,29 @@ function renderMaxirigDiagram(beam, view) {
   const loadArrowBotY = -depth - loadDiaBB * 1.15 - 1500;   // load-arrow tip below the load-lug eye
   const xs = [0, L, hookX, cwCenter + blockW / 2, cwCenter - blockW / 2];
   const ys = [hookY + cleatH, cleatH, -(depth + blockH), loadArrowBotY];
+  const wingKg = view.useWing ? ((beam.alt_charts && beam.alt_charts.wing_weights && beam.alt_charts.wing_weights.added_mass_kg) || 0) : 0;
+  const frontDia = (selLug && selLug.dia_mm) || 40;
+  // CAUTION (no rated position levels the load): the rear sling goes slack and the beam hangs from the
+  // front-lug pin, rotating nose-down until the combined CoG is directly under the pin. Vertical offsets
+  // are this drawing's own (pin at the padeye boss, load at the load-lug eye, beam at mid-depth, C/W at
+  // the block centre), so the angle is indicative. tiltDeg > 0 = nose-down; 0 = drawn level as before.
+  const pinW = { x: xLsel, y: 1.15 * frontDia };
+  let tiltDeg = 0;
+  if (view.caution && view.loadKg > 0 && beam.beam_cog_x_mm != null) {
+    const ms = [[view.loadKg, 0, -depth - loadDiaBB * 1.15], [beam.beam_only_kg, beam.beam_cog_x_mm, -depth / 2],
+                [beam.counterweight_kg + wingKg, cwCenter, -(depth + blockH / 2)]];
+    const M = ms.reduce((a, m) => a + m[0], 0);
+    const dx = ms.reduce((a, m) => a + m[0] * (m[1] - pinW.x), 0) / M, dy = ms.reduce((a, m) => a + m[0] * (m[2] - pinW.y), 0) / M;
+    tiltDeg = Math.max(0, -90 - Math.atan2(dy, dx) * 180 / Math.PI);
+  }
+  const tc = Math.cos(tiltDeg * Math.PI / 180), ts = Math.sin(tiltDeg * Math.PI / 180);
+  const rot = (x, y) => ({ x: pinW.x + (x - pinW.x) * tc - (y - pinW.y) * ts, y: pinW.y + (x - pinW.x) * ts + (y - pinW.y) * tc });
+  const loadEyeW = rot(0, -depth - loadDiaBB * 1.15);
+  if (tiltDeg) {
+    [[0, 0], [L, 0], [0, -depth], [L, -depth], [cwCenter - blockW / 2, -(depth + blockH)], [cwCenter + blockW / 2, -(depth + blockH)],
+     [xR, 1.15 * (beam.back_lug_dia_mm || frontDia)]].forEach(([x, y]) => { const q = rot(x, y); xs.push(q.x); ys.push(q.y); });
+    ys.push(loadEyeW.y - 1500);
+  }
   const minX = Math.min(...xs) - 900, maxX = Math.max(...xs) + 900;
   // top margin in SCREEN px (via the width-derived scale) so the beam/sling clear the header text
   const topGapPx = 120, sX = 940 / (maxX - minX);
@@ -292,24 +324,24 @@ function renderMaxirigDiagram(beam, view) {
   const SX = wx => ((wx - minX) * scale).toFixed(1);
   const SY = wy => ((maxY - wy) * scale).toFixed(1);
   const Spx = mm => (mm * scale).toFixed(1);
-  const ok = view.ok, accent = ok ? '#0a7d2c' : '#c0392b';
+  // view.caution: no rated position levels the load (CAUTION panel) — amber, and say so on line 2
+  const ok = view.ok, accent = !ok ? '#c0392b' : view.caution ? '#b9770e' : '#0a7d2c';
+  const textW = (txt, px) => txt.length * px * 0.58;   // tilted labels only: flip a label left when it would leave the frame
   const frontColor = '#1f6feb', rearColor = '#0a7d2c';
 
   const L2 = [];
   L2.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" font-family="system-ui, sans-serif" font-size="22">`);
-  const wingKg = view.useWing ? ((beam.alt_charts && beam.alt_charts.wing_weights && beam.alt_charts.wing_weights.added_mass_kg) || 0) : 0;
   L2.push(`<text x="8" y="20" font-size="19" fill="#c0392b" font-weight="700">${beam.id} · ${beam.name} · Tare ${((beam.self_weight_kg + wingKg)/1000).toFixed(2)} t (C/W ${((beam.counterweight_kg + wingKg)/1000).toFixed(2)} t)${view.useWing ? ` · WING WEIGHTS +${(wingKg/1000).toFixed(1)} t` : ''}</text>`);
-  L2.push(beamInfoLine2(beam));
+  L2.push(beamInfoLine2(beam, view.caution ? `NOT LEVEL — rear sling slack, beam hangs ${tiltDeg ? '≈' + tiltDeg.toFixed(0) + '° ' : ''}nose-down` : null));
 
   // lug hole heights (real mm) — slings attach at the padeye holes, proportional to each lug's dia
-  const frontDia = (selLug && selLug.dia_mm) || 40;
   const rearDia = beam.back_lug_dia_mm || (beam.offset_lugs[0] && beam.offset_lugs[0].dia_mm) || 40;
   const loadDia = (beam.load_lug && beam.load_lug.dia_mm) || 40;
   const holeH = dia => 1.15 * dia;   // padeye boss-centre height above the beam top line
   const loadLugHoleY = -depth - loadDia * 1.15;
 
   // ---- slings to the single hook (attach at the front-lug and rear-lug padeye holes) ----
-  const fA = { x: xLsel, y: holeH(frontDia) }, rB = { x: xR, y: holeH(rearDia) }, hk = { x: hookX, y: hookY };
+  const fA = { x: xLsel, y: holeH(frontDia) }, rB = tiltDeg ? rot(xR, holeH(rearDia)) : { x: xR, y: holeH(rearDia) }, hk = { x: hookX, y: hookY };
   const hkS = { x: Number(SX(hk.x)), y: Number(SY(hk.y)) };
   const fLS = { x: Number(SX(fA.x)), y: Number(SY(fA.y)) };   // front lug (left)
   const rLS = { x: Number(SX(rB.x)), y: Number(SY(rB.y)) };   // rear lug (right)
@@ -321,7 +353,7 @@ function renderMaxirigDiagram(beam, view) {
     return { nx, ny };
   };
   L2.push(`<line data-role="leg-line" data-leg="front" x1="${SX(hk.x)}" y1="${SY(hk.y)}" x2="${SX(fA.x)}" y2="${SY(fA.y)}" stroke="${frontColor}" stroke-width="3"/>`);
-  L2.push(`<line data-role="leg-line" data-leg="rear" x1="${SX(hk.x)}" y1="${SY(hk.y)}" x2="${SX(rB.x)}" y2="${SY(rB.y)}" stroke="${rearColor}" stroke-width="3"/>`);
+  L2.push(`<line data-role="leg-line" data-leg="rear" x1="${SX(hk.x)}" y1="${SY(hk.y)}" x2="${SX(rB.x)}" y2="${SY(rB.y)}" stroke="${rearColor}" stroke-width="3"${tiltDeg ? ' stroke-dasharray="10 7"' : ''}/>`);
   {   // front leg label pushed to the OUTSIDE (left), perpendicular to the leg
     const mx = (hkS.x + fLS.x) / 2, my = (hkS.y + fLS.y) / 2, n = outNormal(hkS.x, hkS.y, fLS.x, fLS.y, rLS.x, rLS.y);
     const ax = mx + n.nx * LBLOFF, ay = my + n.ny * LBLOFF, anc = n.nx < 0 ? 'end' : 'start';
@@ -329,14 +361,20 @@ function renderMaxirigDiagram(beam, view) {
   }
   {   // rear leg label pushed to the OUTSIDE (right), perpendicular to the leg
     const mx = (hkS.x + rLS.x) / 2, my = (hkS.y + rLS.y) / 2, n = outNormal(hkS.x, hkS.y, rLS.x, rLS.y, fLS.x, fLS.y);
-    const ax = mx + n.nx * LBLOFF, ay = my + n.ny * LBLOFF, anc = n.nx < 0 ? 'end' : 'start';
-    L2.push(`<text data-role="leg-label" data-leg="rear" x="${ax.toFixed(1)}" y="${ay.toFixed(1)}" text-anchor="${anc}" fill="${rearColor}" font-weight="600">Rear sling ${g.valid ? (g.rearLen/1000).toFixed(2)+' m @ '+g.rearDeg.toFixed(0)+'°' : '—'}</text>`);
+    let ax = mx + n.nx * LBLOFF, ay = my + n.ny * LBLOFF, anc = n.nx < 0 ? 'end' : 'start';
+    const rearTxt = `Rear sling ${g.valid ? (g.rearLen/1000).toFixed(2)+' m' + (tiltDeg ? ' — SLACK' : ' @ '+g.rearDeg.toFixed(0)+'°') : '—'}`;
+    if (tiltDeg) {   // slack leg is short: label beside the rear lug, clear of "Crane hook" — left of it if the right side has no room
+      const fits = rLS.x + 18 + textW(rearTxt, 22) <= svgW - 4;
+      ax = fits ? rLS.x + 18 : rLS.x - 18; ay = rLS.y - 10; anc = fits ? 'start' : 'end';
+    }
+    L2.push(`<text data-role="leg-label" data-leg="rear" x="${ax.toFixed(1)}" y="${ay.toFixed(1)}" text-anchor="${anc}" fill="${rearColor}" font-weight="600">${rearTxt}</text>`);
   }
   // crane hook (label centred ABOVE the sling-joint node, one line clear)
   L2.push(`<circle cx="${SX(hk.x)}" cy="${SY(hk.y)}" r="6" fill="#111"/>`);
   L2.push(`<text x="${SX(hk.x)}" y="${(Number(SY(hk.y)) - 30).toFixed(1)}" text-anchor="middle" font-weight="600">Crane hook</text>`);
 
-  // ---- beam (level box girder) ----
+  // ---- beam (level box girder; rotated as one body about the front-lug pin when it hangs nose-down) ----
+  if (tiltDeg) L2.push(`<g data-role="beam-body" data-tilt="${tiltDeg.toFixed(1)}" transform="rotate(${(-tiltDeg).toFixed(2)} ${SX(pinW.x)} ${SY(pinW.y)})">`);
   L2.push(`<rect x="${SX(0)}" y="${SY(0)}" width="${Spx(L)}" height="${Spx(depth)}" fill="#d7dce1" stroke="#5b6670" stroke-width="1"/>`);
   L2.push(`<line x1="${SX(0)}" y1="${SY(0)}" x2="${SX(L)}" y2="${SY(0)}" stroke="#2b3038" stroke-width="3"/>`);
   L2.push(`<line x1="${SX(0)}" y1="${SY(-depth)}" x2="${SX(L)}" y2="${SY(-depth)}" stroke="#2b3038" stroke-width="3"/>`);
@@ -370,15 +408,45 @@ function renderMaxirigDiagram(beam, view) {
     const sel = pick.holeIndex != null && pinHoleXs.some(px => Math.abs(px - hx) < 1);
     L2.push(`<circle data-role="hole" data-hole-i="${i}" cx="${SX(hx)}" cy="${SY(railY)}" r="${(14*scale).toFixed(1)}" fill="${sel ? accent : '#8a949e'}" stroke="#2b3038" stroke-width="0.6"/>`);
   });
+  // Position marks (x) where the GA letters the POSITIONS between the bolt holes (MR13264): the
+  // counterweight's MIDDLE plate lines up with its position's mark — the bolt holes are not positions.
+  const posMarks = beam.ballast.labels_at === 'positions';
+  if (posMarks) rail.labelXs.forEach(mx => {
+    const cx = Number(SX(mx)), cy = Number(SY(railY)), r = Math.max(2.5, 14 * scale);
+    L2.push(`<path data-role="pos-mark" d="M ${(cx-r).toFixed(1)} ${(cy-r).toFixed(1)} L ${(cx+r).toFixed(1)} ${(cy+r).toFixed(1)} M ${(cx-r).toFixed(1)} ${(cy+r).toFixed(1)} L ${(cx+r).toFixed(1)} ${(cy-r).toFixed(1)}" stroke="#2b3038" stroke-width="1.2"/>`);
+  });
 
   // ---- counterweight block under the chosen ballast position (drawn BEFORE the letters) ----
   const cwTopY = -depth, cwBotY = -(depth + blockH);
   L2.push(`<rect data-role="counterweight" x="${SX(cwCenter - blockW/2)}" y="${SY(cwTopY)}" width="${Spx(blockW)}" height="${Spx(blockH)}" rx="3" fill="${accent}" stroke="#16331f" stroke-width="1.5"/>`);
   pinHoleXs.forEach(px => L2.push(`<line data-role="cw-pin" x1="${SX(px)}" y1="${SY(-depth*0.4)}" x2="${SX(px)}" y2="${SY(cwTopY)}" stroke="#2b3038" stroke-width="2"/>`));
-  const cwLabel = pick.hole != null ? `Pos ${pick.hole}` : 'no valid pos';
-  const cwLabelX = Math.max(70, Math.min(svgW - 70, Number(SX(cwCenter))));   // keep the middle-anchored label inside the viewBox
-  L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+16}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">C/W ${(beam.counterweight_kg/1000).toFixed(2)} t · ${cwLabel}</text>`);
-  if (pick.distFromLugMm != null) L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwBotY))+31}" text-anchor="middle" fill="#333" font-size="16">${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
+  if (posMarks && pick.holeIndex != null) {   // the middle plate, on the block centre = the position
+    const w = Math.max(3, 30 * scale), top = Number(SY(-depth * 0.4)), bot = Number(SY(cwTopY));
+    L2.push(`<rect data-role="cw-midplate" x="${(Number(SX(cwCenter)) - w / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${(bot - top).toFixed(1)}" fill="#16331f"/>`);
+  }
+
+  // C/W labels stay upright: under the block, at its (possibly rotated) bottom-centre. Level views draw
+  // them here, before the letters (unchanged order); a tilted view draws them after the rotated body.
+  const cwLabels = () => {
+    const cwLabel = pick.hole != null ? `Pos ${pick.hole}` : 'no valid pos';
+    if (tiltDeg) {   // rotated block: label to the right of its rotated outline, at mid-height
+      const cs = [[cwCenter - blockW / 2, cwTopY], [cwCenter + blockW / 2, cwTopY], [cwCenter - blockW / 2, cwBotY], [cwCenter + blockW / 2, cwBotY]].map(([x, y]) => rot(x, y));
+      const t1 = `C/W ${(beam.counterweight_kg/1000).toFixed(2)} t · ${cwLabel}`;
+      const t2 = pick.distFromLugMm != null ? `${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}` : null;
+      const sxs = cs.map(q => Number(SX(q.x))), ly0 = cs.reduce((a, q) => a + Number(SY(q.y)), 0) / 4;
+      const wMax = Math.max(textW(t1, 17), t2 ? textW(t2, 16) : 0);
+      const right = Math.max(...sxs) + 10 + wMax <= svgW - 4;   // else put it on the block's left side
+      const lx0 = right ? Math.max(...sxs) + 10 : Math.min(...sxs) - 10, anc = right ? 'start' : 'end';
+      L2.push(`<text data-role="cw-label" x="${lx0.toFixed(1)}" y="${(ly0 + 6).toFixed(1)}" text-anchor="${anc}" fill="#16331f" font-size="17" font-weight="700">${t1}</text>`);
+      if (t2) L2.push(`<text data-role="cw-label" x="${lx0.toFixed(1)}" y="${(ly0 + 22).toFixed(1)}" text-anchor="${anc}" fill="#333" font-size="16">${t2}</text>`);
+      return;
+    }
+    const cwAnchor = tiltDeg ? rot(cwCenter, cwBotY) : { x: cwCenter, y: cwBotY };
+    const cwLabelX = Math.max(70, Math.min(svgW - 70, Number(SX(cwAnchor.x))));   // keep the middle-anchored label inside the viewBox
+    L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwAnchor.y))+16}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">C/W ${(beam.counterweight_kg/1000).toFixed(2)} t · ${cwLabel}</text>`);
+    if (pick.distFromLugMm != null) L2.push(`<text x="${cwLabelX}" y="${Number(SY(cwAnchor.y))+31}" text-anchor="middle" fill="#333" font-size="16">${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
+  };
+  if (!tiltDeg) cwLabels();
 
   // Ballast labels LAST — on top of the block, white halo so a number is never hidden. Where a
   // position spans several pins the rail carries the PHYSICAL pins, so label them 1..n exactly as
@@ -386,15 +454,17 @@ function renderMaxirigDiagram(beam, view) {
   // and the rail stays legible — 12 overlapping span labels ("10-12","11-13") were unreadable.
   const railLabels = rail.labels;
   railLabels.forEach((letter, i) => {
-    L2.push(`<text data-role="ballast-letter" x="${SX(railXs[i])}" y="${(Number(SY(-depth))+13).toFixed(1)}" text-anchor="middle" font-size="13" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round">${letter}</text>`);
+    L2.push(`<text data-role="ballast-letter" x="${SX(rail.labelXs[i])}" y="${(Number(SY(-depth))+13).toFixed(1)}" text-anchor="middle" font-size="13" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round">${letter}</text>`);
   });
+  if (tiltDeg) { L2.push(`</g>`); cwLabels(); }   // upright labels, outside the rotated body
 
   // ---- load hanging from the load lug (below the beam nose) ----
-  L2.push(`<text x="${Math.max(80, Number(SX(0)) - 8)}" y="${SY(-depth*0.5)}" text-anchor="end" font-size="17">Load lug</text>`);
+  { const ll = tiltDeg ? rot(0, -depth * 0.5) : { x: 0, y: -depth * 0.5 };
+    L2.push(`<text x="${Math.max(80, Number(SX(ll.x)) - 8)}" y="${SY(ll.y)}" text-anchor="end" font-size="17">Load lug</text>`); }
   // standard engineering load arrow: bold vertical arrow pointing DOWN, tail attached to the load-lug eye
   {
-    const aTopY = loadLugHoleY, aBotY = aTopY - 1200;              // 1200 mm long (world mm x scale)
-    const ax = SX(0), yTop = SY(aTopY), yBot = SY(aBotY), hLen = 18, hHalf = 9;
+    const aTopY = tiltDeg ? loadEyeW.y : loadLugHoleY, aBotY = aTopY - 1200;   // 1200 mm long (world mm x scale)
+    const ax = SX(tiltDeg ? loadEyeW.x : 0), yTop = SY(aTopY), yBot = SY(aBotY), hLen = 18, hHalf = 9;
     L2.push(`<line x1="${ax}" y1="${yTop}" x2="${ax}" y2="${(Number(yBot) - hLen).toFixed(1)}" stroke="${accent}" stroke-width="4"/>`);
     L2.push(`<path d="M ${ax} ${yBot} L ${(Number(ax) - hHalf).toFixed(1)} ${(Number(yBot) - hLen).toFixed(1)} L ${(Number(ax) + hHalf).toFixed(1)} ${(Number(yBot) - hLen).toFixed(1)} Z" fill="${accent}"/>`);
     // weight centred BELOW the arrow tip (was beside the shaft)
@@ -545,6 +615,11 @@ function renderMaxirigChainBlock(beam, view) {
     const sel = rail.span > 1 ? pinXsW.some(px => Math.abs(px - hx) < 1) : i === view.holeIndex;
     L2.push(`<circle data-role="hole" data-hole-i="${i}" cx="${lx(hx)}" cy="${Spx(railY)}" r="${(14*scale).toFixed(1)}" fill="${sel ? accent : '#8a949e'}" stroke="#2b3038" stroke-width="0.6"/>`);
   });
+  const posMarks = beam.ballast.labels_at === 'positions';   // x marks: see the fixed-sling renderer
+  if (posMarks) rail.labelXs.forEach(mx => {
+    const cx = Number(lx(mx)), cy = Number(Spx(railY)), r = Math.max(2.5, 14 * scale);
+    L2.push(`<path data-role="pos-mark" d="M ${(cx-r).toFixed(1)} ${(cy-r).toFixed(1)} L ${(cx+r).toFixed(1)} ${(cy+r).toFixed(1)} M ${(cx-r).toFixed(1)} ${(cy+r).toFixed(1)} L ${(cx+r).toFixed(1)} ${(cy-r).toFixed(1)}" stroke="#2b3038" stroke-width="1.2"/>`);
+  });
   // counterweight rigidly bolted below the beam (draggable, snaps to holes) — tilts with the beam
   const cwx = view.holeXMm * scale, bw = blockW * scale, bh = blockH * scale;
   const cwtFromLugMm = view.holeXMm - (selLug ? selLug.x_mm : 0);
@@ -555,19 +630,23 @@ function renderMaxirigChainBlock(beam, view) {
     const px = pxW * scale;
     L2.push(`<line data-role="cw-pin" x1="${px.toFixed(1)}" y1="${boltTop.toFixed(1)}" x2="${px.toFixed(1)}" y2="${(blockTop + bh * 0.3).toFixed(1)}" stroke="#2b3038" stroke-width="2.5"/>`);
   });
+  if (posMarks) {   // the middle plate, on the block centre = the position
+    const w = Math.max(3, 30 * scale);
+    L2.push(`<rect data-role="cw-midplate" x="${(cwx - w / 2).toFixed(1)}" y="${boltTop.toFixed(1)}" width="${w.toFixed(1)}" height="${(blockTop + bh * 0.3 - boltTop).toFixed(1)}" fill="#16331f"/>`);
+  }
   L2.push(`<rect x="${(cwx - bw / 2).toFixed(1)}" y="${blockTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${accent}" stroke="#16331f" stroke-width="1.5"/>`);
   L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 14).toFixed(1)}" text-anchor="middle" fill="#16331f" font-size="17" font-weight="700">${((beam.counterweight_kg + (view.wingKg || 0)) / 1000).toFixed(2)} t${view.wingKg ? ' (incl. wings)' : ''} · Hole ${view.hole}</text>`);
   L2.push(`<text x="${cwx.toFixed(1)}" y="${(blockTop + bh + 28).toFixed(1)}" text-anchor="middle" fill="#333" font-size="16">${(cwtFromLugMm/1000).toFixed(2)} m from lug ${lugTag(beam, view.lugId)}</text>`);
   L2.push(`</g>`);
   // ballast letters LAST (over the block, white halo)
-  const nHoles = rail.xs.length;
-  const holePitchPx = nHoles > 1 ? Math.abs(rail.xs[1] - rail.xs[0]) * scale : 999;
+  const labXs = rail.labelXs, nLab = labXs.length;
+  const holePitchPx = nLab > 1 ? Math.abs(labXs[1] - labXs[0]) * scale : 999;
   const lblStep = Math.max(1, Math.ceil(16 / holePitchPx));
   rail.labels.forEach((letter, i) => {
-    const onStep = i % lblStep === 0 && (nHoles - 1 - i) >= lblStep;
-    const engaged = rail.span > 1 && pinXsW.some(px => Math.abs(px - rail.xs[i]) < 1);
-    if (!onStep && i !== nHoles - 1 && !engaged && i !== view.holeIndex) return;
-    L2.push(`<text data-role="ballast-letter" x="${lx(rail.xs[i])}" y="${Spx(depth + 170)}" text-anchor="middle" font-size="15" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${letter}</text>`);
+    const onStep = i % lblStep === 0 && (nLab - 1 - i) >= lblStep;
+    const engaged = rail.span > 1 && pinXsW.some(px => Math.abs(px - labXs[i]) < 1);
+    if (!onStep && i !== nLab - 1 && !engaged && i !== view.holeIndex) return;
+    L2.push(`<text data-role="ballast-letter" x="${lx(labXs[i])}" y="${Spx(depth + 170)}" text-anchor="middle" font-size="15" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${letter}</text>`);
   });
   L2.push(`</g>`);
 
