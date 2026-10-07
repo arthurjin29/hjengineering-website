@@ -179,7 +179,10 @@ function maxirigPanel(b, lugId, load, g, res, useWing) {
   const capTxt = capacityLabel(b);     // 'certified capacity' only where a certificate is on file
   const kg = v => Math.round(v).toLocaleString();
   const msgs = [];
-  if (!ok) msgs.push(`Load ${load.toLocaleString()} kg exceeds the ${capTxt} at lug ${lugTxt} (max ${res.maxGovKg.toLocaleString()} kg${useWing ? ', wing-weights chart' : ''}). Try a lower lug or move the load closer.`);
+  const manual = !!res.manual;
+  if (!ok && manual && res.notRated) msgs.push(`Position ${res.manualHole} is not rated for lug ${lugTxt} on the maker chart — choose another position.`);
+  else if (!ok && manual) msgs.push(`Load ${load.toLocaleString()} kg exceeds the ${capTxt} at position ${pick.hole} (${pick.govKg.toLocaleString()} kg). Choose a position further rear, or Auto.`);
+  else if (!ok) msgs.push(`Load ${load.toLocaleString()} kg exceeds the ${capTxt} at lug ${lugTxt} (max ${res.maxGovKg.toLocaleString()} kg${useWing ? ', wing-weights chart' : ''}). Try a lower lug or move the load closer.`);
   if (sl.conflict) msgs.push(`Lug ${lugTxt} rear sling length is UNRESOLVED: ${sl.conflict}`);
   if (useWing) msgs.push('Wing-weights chart in use (2×750 kg wings fitted). Standard chart does not apply.');
   const util = ok ? (load / pick.govKg * 100).toFixed(0) + '%' : '—';
@@ -189,22 +192,68 @@ function maxirigPanel(b, lugId, load, g, res, useWing) {
   let levelTxt = '';
   if (res.levelled) {
     levelTxt = `<br/>Chart minimum is position ${cp.hole} (${kg(cp.cellKg)} kg) — there ${hang}.`;
+  } else if (caution && manual) {
+    levelTxt = `<br/>Position ${pick.hole} levels ${kg(pick.balancesKg)} kg — at ${load.toLocaleString()} kg ${hang}.`;
   } else if (caution) {
     levelTxt = `<br/>No position levels ${load.toLocaleString()} kg at lug ${lugTxt} — the most the counterweight levels is ${kg(res.maxLevelKg)} kg (position ${res.maxLevelHole}). At position ${pick.hole} ${hang}.`;
   }
   const html =
     `<strong>${!ok ? 'NOT OK' : caution ? 'CAUTION' : 'OK'}</strong> &nbsp; ` +
-    (ok ? `Counterweight position <strong>${pick.hole}</strong> — ${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTxt}` +
-          (res.levelled ? ` (beam level — balances ${kg(pick.balancesKg)} kg)` : '')
+    (ok ? `Counterweight position <strong>${pick.hole}</strong>${manual ? ' (manual)' : ''} — ${(pick.distFromLugMm/1000).toFixed(2)} m from lug ${lugTxt}` +
+          (res.levelled ? ` (beam level — balances ${kg(pick.balancesKg)} kg)`
+            : manual && res.overBalanced ? ` (over-balances by ${kg(res.overKg)} kg — the beam tilts rear-down)`
+            : manual && b.level_pick && !caution ? ` (beam level — balances ${kg(pick.balancesKg)} kg)` : '')
+        : manual ? `Counterweight position <strong>${res.manualHole}</strong> (manual) cannot be used for this load`
         : 'No rated counterweight position carries this load') +
-    `<br/>${capTxt[0].toUpperCase() + capTxt.slice(1)} (lug ${lugTxt}${useWing ? ', wing weights' : ''}): cell <strong>${ok ? pick.cellKg.toLocaleString() + ' kg' : '—'}</strong>${levTxt} · lug max ${res.maxGovKg.toLocaleString()} kg · WLL ${b.wll_t} t${ok && pick.cellKg > wllKg ? ' (capped at WLL)' : ''} · util ${util}` +
+    `<br/>${capTxt[0].toUpperCase() + capTxt.slice(1)} (lug ${lugTxt}${useWing ? ', wing weights' : ''}): cell <strong>${(ok || (manual && pick)) ? pick.cellKg.toLocaleString() + ' kg' : '—'}</strong>${levTxt} · lug max ${res.maxGovKg.toLocaleString()} kg · WLL ${b.wll_t} t${ok && pick.cellKg > wllKg ? ' (capped at WLL)' : ''} · util ${util}` +
     levelTxt +
-    `<br/>${adjustable ? 'Slings' : 'Fixed slings'} — front ${fl ? (fl/1000).toFixed(2) + ' m @ ' + (g.valid ? g.frontDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; rear ${rl ? (rl/1000).toFixed(2) + ' m @ ' + (g.valid ? g.rearDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; hook ${g.valid ? Math.round(g.hookOffsetMm) + ' mm rear of lug' : '—'}` +
+    (manual ? `<br/>Recommended (Auto): ${res.autoPick ? 'position ' + res.autoPick.hole : 'no rated position carries this load'}` : '') +
+    `<br/>${adjustable ? 'Slings' : 'Fixed slings'}${manual && res.overBalanced ? ' as rigged (level)' : ''} — front ${fl ? (fl/1000).toFixed(2) + ' m @ ' + (g.valid ? g.frontDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; rear ${rl ? (rl/1000).toFixed(2) + ' m @ ' + (g.valid ? g.rearDeg.toFixed(0) + '°' : '—') : '—'} &nbsp; hook ${g.valid ? Math.round(g.hookOffsetMm) + ' mm rear of lug' : '—'}` +
     // Only assert certification when a certificate is actually on file. Beams certified by the
     // supplier without one recorded here simply say nothing — never a defaulted standard number.
     (c.standard ? `<br/><span class="muted">Certified to ${c.standard} · proof cert ${c.proof_cert_no || '—'}${c.proof_date ? ' (' + c.proof_date + ')' : ''} · ${c.model_no || ''} · dwg ${c.drawing_no || '—'}</span>` : '') +
     (msgs.length ? `<div class="muted">${msgs.join('<br/>')}</div>` : '');
   return { cls: !ok ? 'fail' : caution ? 'warn' : 'ok', html };
+}
+
+// Manual counterweight position (Arthur 2026-10-07): evaluate the position the user picked instead of
+// the recommended one. Same result shape as levelPick (plus manual / autoPick / overBalanced / overKg)
+// so the panel and diagram take either. Judged at THIS position only:
+//  - struck out / NO LIFT (notRated) or load over the cell capped at WLL (overCapacity) -> not liftable;
+//  - tiltsForward (CAUTION, nose-down): only on level_pick beams (MR13264) and only when the load
+//    exceeds the balancing load by more than 2 x the CoG fit RMS — on the other beams the maker's chart
+//    IS the balance chart, so a cell that carries the load balances it;
+//  - overBalanced (rear-down): the balancing load exceeds the load by more than the same tolerance.
+function manualPick(beam, lugId, loadKg, holeIndex, wingKg) {
+  const auto = levelPick(beam, lugId, loadKg, wingKg);
+  const base = Object.assign({}, auto, { manual: true, autoPick: auto.pick, levelled: false,
+    tiltsForward: false, overBalanced: false, overKg: 0, notRated: false, overCapacity: false });
+  const hole = beam.ballast.holes[holeIndex];
+  const cellKg = (chartFor(beam, wingKg > 0)[String(lugId)] || {})[hole];
+  if (hole == null || cellKg == null) return Object.assign(base, { pick: null, liftable: false, notRated: true, manualHole: hole });
+  const govKg = Math.min(cellKg, beam.wll_t * 1000);
+  const holeXMm = holeXAt(beam, holeIndex), lugX = lugById(beam, lugId).x_mm;
+  const balancesKg = auto.hasMoment ? balancingLoad(beam, lugId, holeIndex, wingKg) : null;
+  const pick = { hole, holeIndex, holeXMm, distFromLugMm: holeXMm - lugX, cellKg, govKg, balancesKg };
+  if (govKg < loadKg) return Object.assign(base, { pick, liftable: false, overCapacity: true, manualHole: hole });
+  // Rear-down needs the combined CoG rear of BOTH the hook and the front-lug pin: with the hook rear of the
+  // lug (older Maxirig beams, ~95-185 mm) the rig swings about the hook, so the hook decides (sweep: MR10577
+  // lug 1, 11.5 t @B balances about the lug yet is still ahead of the hook); with the hook FORWARD of the lug
+  // (MX#OLB4 lug C, 17.8 mm) a CoG between them leaves the front sling alone carrying, pivoting on the pin —
+  // nose-down, not rear-down — so the pin decides. Expressed as the extra load at the lifting point that would
+  // bring the CoG to that line; on MR13264 hook and lug coincide, so this equals balancing load - load.
+  const gH = fixedSlingGeometry(beam, lugId), hX = gH.valid ? Math.max(gH.hookX, lugX) : lugX;
+  const P = beam.ballast_kg + (wingKg || 0), Bm = beam.maker === 'Maxirig' ? beam.beam_only_kg : beam.self_weight_kg;
+  const overKg = auto.hasMoment ? (Bm * (beam.beam_cog_x_mm - hX) + P * (holeXMm - hX)) / hX - loadKg : 0;
+  // The level position (lightest carrying position that still balances) reads "level" exactly as in Auto,
+  // even though it over-balances by up to one position step; only positions REAR of it are over-balanced.
+  // Auto's OWN pick, chosen by hand, must read exactly as Auto does (MR11022 lug 1: capped A-G tie, Auto
+  // takes A; by hand A must not suddenly "over-balance by 4,601 kg").
+  const isAutoPick = !!(auto.pick && auto.pick.hole === hole);
+  const levelHere = !!(auto.level && auto.level.hole === hole) || isAutoPick;
+  return Object.assign(base, { pick, liftable: true, manualHole: hole, overKg, levelHere,
+    tiltsForward: isAutoPick ? auto.tiltsForward : !!beam.level_pick && auto.hasMoment && -overKg > auto.tolKg,
+    overBalanced: auto.hasMoment && overKg > auto.tolKg && !levelHere });
 }
 
 // Levelling capacity (Arthur 2026-10-06, shown in brackets next to the chart capacity): the most load
@@ -558,4 +607,4 @@ function findSuitableBeams(beams, loadKg, offsetM) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, levelPick, levellingKg, capacityLabel, maxirigPanel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
+if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, levelPick, manualPick, levellingKg, capacityLabel, maxirigPanel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };

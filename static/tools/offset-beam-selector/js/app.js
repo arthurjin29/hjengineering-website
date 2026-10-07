@@ -1,7 +1,7 @@
 let BEAMS = [];
 const $ = id => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const state = { beam: null, lugId: 1, loadKg: 10000, headMm: 3000, holeIndex: null, chainBlockMm: 3000, fixedTailMm: 0, detached: false, wing: false, rigMode: 'fixed', rig: null, frame: null, rearDeg: null };
+const state = { beam: null, lugId: 1, loadKg: 10000, headMm: 3000, holeIndex: null, chainBlockMm: 3000, fixedTailMm: 0, detached: false, wing: false, rigMode: 'fixed', rig: null, frame: null, rearDeg: null, cwManual: null };
 
 // Structural beam mass: Maxirig self_weight_kg bundles the counterweight, so use beam_only_kg.
 function structMass(beam) { return beam.maker === 'Maxirig' ? beam.beam_only_kg : beam.self_weight_kg; }
@@ -50,6 +50,7 @@ function renderLugs() {
 // Beam change: reset transient state + panels so a GTC/Maxirig switch never shows stale controls.
 function onBeamChange() {
   state.wing = false; if ($('wing')) $('wing').checked = false;
+  state.cwManual = null;   // manual counterweight position -> back to Auto
   resetRearDeg(currentBeam());
   state.rigMode = 'fixed';
   const fx = document.querySelector('input[name=rigmode][value=fixed]'); if (fx) fx.checked = true;
@@ -63,6 +64,7 @@ $('beam').addEventListener('change', onBeamChange);
 // rig. Clear the panels/diagram and re-default the load band (chain-block is C/W-balance-limited).
 document.querySelectorAll('input[name=rigmode]').forEach(r => r.addEventListener('change', () => {
   state.rigMode = document.querySelector('input[name=rigmode]:checked').value;
+  state.cwManual = null;   // the chain-block path changes state.lugId too, so a manual pick must not survive the round trip
   resetPanels();
   defaultLoadToLug();
   refreshChart();   // resetPanels clears the wing tick, so redraw the chart it no longer matches
@@ -159,8 +161,10 @@ $('f').addEventListener('submit', e => {
 // ---- Maxirig: fixed-sling rigging, chart capacity, levelled counterweight (selector.levelPick) ----
 
 function calcMaxirig() {
+  const prevBeam = state.beam, prevLug = state.lugId;
   state.beam = currentBeam();
   state.lugId = Number(document.querySelector('input[name=lug]:checked').value);
+  if (state.beam !== prevBeam || state.lugId !== prevLug) state.cwManual = null;   // new beam/lug -> Auto; a load change keeps it
   state.loadKg = Number($('load').value);
   $('controls').hidden = true;
   $('fixedrig').hidden = false;
@@ -173,6 +177,30 @@ function calcMaxirig() {
 // Rear sling angle (beams whose maker gives a rear-angle LIMIT, not a sling set — MR13264): the
 // slider range is the beam's own window, it starts at the beam's default (MR13264: 60°, the printed slings) on every beam change, and
 // moving it re-renders the fixed-sling result live.
+// Manual counterweight position (Arthur 2026-10-07). "Auto" = the recommended position (levelPick); any
+// other choice is judged at that position by selector.manualPick. Listed rear-most first like the chart
+// table, with the chart capacity and (MR13264) the levelling capacity; unrated cells are disabled.
+function fillCwPos(b, lugId, auto, useWing) {
+  const chart = window.chartFor(b, useWing)[String(lugId)] || {};
+  const notes = ((useWing && b.alt_charts ? b.alt_charts.wing_weights.chart_cells_note : b.chart_cells_note) || {})[String(lugId)] || {};
+  const xs = b.ballast.holes_x_mm, idx = b.ballast.holes.map((_, i) => i);
+  if (xs && xs[xs.length - 1] > xs[0]) idx.reverse();   // rear-most first
+  const opts = [`<option value="">Auto — ${auto.pick ? 'position ' + auto.pick.hole + ' (recommended)' : 'no position carries this load'}</option>`];
+  idx.forEach(i => {
+    const h = b.ballast.holes[i], cell = chart[h];
+    const lev = cell != null ? window.levellingKg(b, lugId, i, wingKg(b)) : null;
+    const txt = cell == null ? `${h} — ${notes[h] || 'not rated'}`
+      : `${h} — ${Math.min(cell, b.wll_t * 1000).toLocaleString()} kg${lev != null ? ' (levels ' + lev.toLocaleString() + ')' : ''}`;
+    opts.push(`<option value="${i}"${cell == null ? ' disabled' : ''}>${txt}</option>`);
+  });
+  $('cwpos').innerHTML = opts.join('');
+  $('cwpos').value = state.cwManual == null ? '' : String(state.cwManual);
+}
+$('cwpos').addEventListener('change', () => {
+  state.cwManual = $('cwpos').value === '' ? null : Number($('cwpos').value);
+  if (state.beam && state.beam === currentBeam() && !$('fixedrig').hidden && state.loadKg > 0) renderMaxirig();
+});
+
 function rearDegWindow(b) { return (b && b.rigging && b.rigging.rear_deg_adjustable) || null; }
 function resetRearDeg(b) {
   const a = rearDegWindow(b);
@@ -191,9 +219,11 @@ function renderMaxirig() {
   const b = state.beam, lugId = state.lugId, load = state.loadKg;
   const useWing = hasWingOption(b) && state.wing;
   const g = window.fixedSlingGeometry(b, lugId, state.rearDeg);
-  const res = window.levelPick(b, lugId, load, wingKg(b));
+  const auto = window.levelPick(b, lugId, load, wingKg(b));
+  const res = state.cwManual == null ? auto : window.manualPick(b, lugId, load, state.cwManual, wingKg(b));
   const view = { maker: 'Maxirig', lugId, loadKg: load, g, pick: res.pick || {}, useWing, ok: res.liftable,
-    caution: res.liftable && res.tiltsForward };
+    caution: res.liftable && res.tiltsForward, tiltRear: !!(res.manual && res.liftable && res.overBalanced) };
+  fillCwPos(b, lugId, auto, useWing);
   updateMaxirigPanel(b, lugId, load, g, res, useWing);
   renderBeamFlags();
   $('diagram').innerHTML = window.renderDiagram(b, view);

@@ -40,10 +40,10 @@ function lugTag(beam, lugId) {
 // (name, tare, wings, rig mode) already fills the 940 px frame. Shared by all three renderers.
 // `warn` (optional) appends an amber note on the same line — the fixed-sling view uses it for CAUTION,
 // because the beam is always DRAWN level there.
-function beamInfoLine2(beam, warn) {
+function beamInfoLine2(beam, warn, warnColor) {
   const len = `${beam.length_approx ? '≈ ' : ''}${(beam.length_mm / 1000).toFixed(2)} m`;
   return `<text data-role="beam-info2" x="8" y="44" font-size="17" fill="#c0392b" font-weight="600">Length ${len} · Supplier: ${beam.supplier}` +
-    (warn ? `<tspan data-role="caution" fill="#b9770e"> · ${warn}</tspan>` : '') + `</text>`;
+    (warn ? `<tspan data-role="caution" fill="${warnColor || '#b9770e'}"> · ${warn}</tspan>` : '') + `</text>`;
 }
 
 // Side-elevation SVG of the offset lifting beam as a two-leg suspension, to true scale (mm).
@@ -298,22 +298,43 @@ function renderMaxirigDiagram(beam, view) {
   // front-lug pin, rotating nose-down until the combined CoG is directly under the pin. Vertical offsets
   // are this drawing's own (pin at the padeye boss, load at the load-lug eye, beam at mid-depth, C/W at
   // the block centre), so the angle is indicative. tiltDeg > 0 = nose-down; 0 = drawn level as before.
+  // view.tiltRear (manual position that over-balances): both slings stay taut and the whole rig swings
+  // about the HOOK, rear-down, until the combined CoG is under the hook. Valid only while the CoG stays
+  // inside the two slings' cone at the hook. selector.manualPick only claims rear-down when the CoG is rear
+  // of both the hook and the front-lug pin, which keeps it inside the cone for every beam in the data
+  // (asserted at every chart-cell boundary in the tests); the guard leaves the figure level otherwise.
   const pinW = { x: xLsel, y: 1.15 * frontDia };
-  let tiltDeg = 0;
+  let tiltDeg = 0, phi = 0, piv = pinW, tiltRear = false;   // phi: signed rotation, counter-clockwise (y up)
+  const cog = () => {   // C/W at the POSITION itself (cwX) — the same x the panel's over-balance uses
+    const ms = [[view.loadKg, 0, -depth - loadDiaBB * 1.15], [beam.beam_only_kg, beam.beam_cog_x_mm, -depth / 2],
+                [beam.counterweight_kg + wingKg, cwX, -(depth + blockH / 2)]];
+    const M = ms.reduce((a, m) => a + m[0], 0);
+    return { x: ms.reduce((a, m) => a + m[0] * m[1], 0) / M, y: ms.reduce((a, m) => a + m[0] * m[2], 0) / M };
+  };
   if (view.caution && view.loadKg > 0 && beam.beam_cog_x_mm != null) {
     const ms = [[view.loadKg, 0, -depth - loadDiaBB * 1.15], [beam.beam_only_kg, beam.beam_cog_x_mm, -depth / 2],
                 [beam.counterweight_kg + wingKg, cwCenter, -(depth + blockH / 2)]];
     const M = ms.reduce((a, m) => a + m[0], 0);
     const dx = ms.reduce((a, m) => a + m[0] * (m[1] - pinW.x), 0) / M, dy = ms.reduce((a, m) => a + m[0] * (m[2] - pinW.y), 0) / M;
     tiltDeg = Math.max(0, -90 - Math.atan2(dy, dx) * 180 / Math.PI);
+    phi = tiltDeg;
+  } else if (view.tiltRear && view.loadKg > 0 && beam.beam_cog_x_mm != null && g.valid) {
+    const c = cog(), hk0 = { x: hookX, y: hookY };
+    const ang = q => Math.atan2(q.y - hk0.y, q.x - hk0.x);
+    const aD = ang(c), aF = ang(pinW), aR = ang({ x: xR, y: 1.15 * (beam.back_lug_dia_mm || frontDia) });
+    if (aD >= aF && aD <= aR) {
+      phi = -90 - aD * 180 / Math.PI;          // negative = clockwise = rear-down
+      if (phi < 0) { tiltDeg = -phi; piv = hk0; tiltRear = true; } else phi = 0;
+    }
   }
-  const tc = Math.cos(tiltDeg * Math.PI / 180), ts = Math.sin(tiltDeg * Math.PI / 180);
-  const rot = (x, y) => ({ x: pinW.x + (x - pinW.x) * tc - (y - pinW.y) * ts, y: pinW.y + (x - pinW.x) * ts + (y - pinW.y) * tc });
+  const tc = Math.cos(phi * Math.PI / 180), ts = Math.sin(phi * Math.PI / 180);
+  const rot = (x, y) => ({ x: piv.x + (x - piv.x) * tc - (y - piv.y) * ts, y: piv.y + (x - piv.x) * ts + (y - piv.y) * tc });
   const loadEyeW = rot(0, -depth - loadDiaBB * 1.15);
   if (tiltDeg) {
     [[0, 0], [L, 0], [0, -depth], [L, -depth], [cwCenter - blockW / 2, -(depth + blockH)], [cwCenter + blockW / 2, -(depth + blockH)],
      [xR, 1.15 * (beam.back_lug_dia_mm || frontDia)]].forEach(([x, y]) => { const q = rot(x, y); xs.push(q.x); ys.push(q.y); });
     ys.push(loadEyeW.y - 1500);
+    if (tiltRear) { const q = rot(pinW.x, pinW.y); xs.push(q.x); ys.push(q.y); }
   }
   const minX = Math.min(...xs) - 900, maxX = Math.max(...xs) + 900;
   // top margin in SCREEN px (via the width-derived scale) so the beam/sling clear the header text
@@ -332,7 +353,8 @@ function renderMaxirigDiagram(beam, view) {
   const L2 = [];
   L2.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" font-family="system-ui, sans-serif" font-size="22">`);
   L2.push(`<text x="8" y="20" font-size="19" fill="#c0392b" font-weight="700">${beam.id} · ${beam.name} · Tare ${((beam.self_weight_kg + wingKg)/1000).toFixed(2)} t (C/W ${((beam.counterweight_kg + wingKg)/1000).toFixed(2)} t)${view.useWing ? ` · WING WEIGHTS +${(wingKg/1000).toFixed(1)} t` : ''}</text>`);
-  L2.push(beamInfoLine2(beam, view.caution ? `NOT LEVEL — rear sling slack, beam hangs ${tiltDeg ? '≈' + tiltDeg.toFixed(0) + '° ' : ''}nose-down` : null));
+  L2.push(beamInfoLine2(beam, view.caution ? `NOT LEVEL — rear sling slack, beam hangs ${tiltDeg ? '≈' + tiltDeg.toFixed(0) + '° ' : ''}nose-down`
+    : tiltRear ? `NOT LEVEL — over-balanced, beam tilts ≈${tiltDeg < 1 ? tiltDeg.toFixed(1) : tiltDeg.toFixed(0)}° rear-down` : null, tiltRear ? '#5b6670' : null));
 
   // lug hole heights (real mm) — slings attach at the padeye holes, proportional to each lug's dia
   const rearDia = beam.back_lug_dia_mm || (beam.offset_lugs[0] && beam.offset_lugs[0].dia_mm) || 40;
@@ -341,7 +363,9 @@ function renderMaxirigDiagram(beam, view) {
   const loadLugHoleY = -depth - loadDia * 1.15;
 
   // ---- slings to the single hook (attach at the front-lug and rear-lug padeye holes) ----
-  const fA = { x: xLsel, y: holeH(frontDia) }, rB = tiltDeg ? rot(xR, holeH(rearDia)) : { x: xR, y: holeH(rearDia) }, hk = { x: hookX, y: hookY };
+  const fA = tiltRear ? rot(xLsel, holeH(frontDia)) : { x: xLsel, y: holeH(frontDia) }, rB = tiltDeg ? rot(xR, holeH(rearDia)) : { x: xR, y: holeH(rearDia) }, hk = { x: hookX, y: hookY };
+  const legDeg = q => Math.atan2(hk.y - q.y, Math.abs(hk.x - q.x)) * 180 / Math.PI;   // drawn leg angle (rig swung rear-down)
+  const slackRear = tiltDeg && !tiltRear;
   const hkS = { x: Number(SX(hk.x)), y: Number(SY(hk.y)) };
   const fLS = { x: Number(SX(fA.x)), y: Number(SY(fA.y)) };   // front lug (left)
   const rLS = { x: Number(SX(rB.x)), y: Number(SY(rB.y)) };   // rear lug (right)
@@ -353,17 +377,17 @@ function renderMaxirigDiagram(beam, view) {
     return { nx, ny };
   };
   L2.push(`<line data-role="leg-line" data-leg="front" x1="${SX(hk.x)}" y1="${SY(hk.y)}" x2="${SX(fA.x)}" y2="${SY(fA.y)}" stroke="${frontColor}" stroke-width="3"/>`);
-  L2.push(`<line data-role="leg-line" data-leg="rear" x1="${SX(hk.x)}" y1="${SY(hk.y)}" x2="${SX(rB.x)}" y2="${SY(rB.y)}" stroke="${rearColor}" stroke-width="3"${tiltDeg ? ' stroke-dasharray="10 7"' : ''}/>`);
+  L2.push(`<line data-role="leg-line" data-leg="rear" x1="${SX(hk.x)}" y1="${SY(hk.y)}" x2="${SX(rB.x)}" y2="${SY(rB.y)}" stroke="${rearColor}" stroke-width="3"${slackRear ? ' stroke-dasharray="10 7"' : ''}/>`);
   {   // front leg label pushed to the OUTSIDE (left), perpendicular to the leg
     const mx = (hkS.x + fLS.x) / 2, my = (hkS.y + fLS.y) / 2, n = outNormal(hkS.x, hkS.y, fLS.x, fLS.y, rLS.x, rLS.y);
     const ax = mx + n.nx * LBLOFF, ay = my + n.ny * LBLOFF, anc = n.nx < 0 ? 'end' : 'start';
-    L2.push(`<text data-role="leg-label" data-leg="front" x="${ax.toFixed(1)}" y="${ay.toFixed(1)}" text-anchor="${anc}" fill="${frontColor}" font-weight="600">Front sling ${g.valid ? (g.frontLen/1000).toFixed(2)+' m @ '+g.frontDeg.toFixed(0)+'°' : '—'}</text>`);
+    L2.push(`<text data-role="leg-label" data-leg="front" x="${ax.toFixed(1)}" y="${ay.toFixed(1)}" text-anchor="${anc}" fill="${frontColor}" font-weight="600">Front sling ${g.valid ? (g.frontLen/1000).toFixed(2)+' m @ '+(tiltRear ? legDeg(fA) : g.frontDeg).toFixed(0)+'°' : '—'}</text>`);
   }
   {   // rear leg label pushed to the OUTSIDE (right), perpendicular to the leg
     const mx = (hkS.x + rLS.x) / 2, my = (hkS.y + rLS.y) / 2, n = outNormal(hkS.x, hkS.y, rLS.x, rLS.y, fLS.x, fLS.y);
     let ax = mx + n.nx * LBLOFF, ay = my + n.ny * LBLOFF, anc = n.nx < 0 ? 'end' : 'start';
-    const rearTxt = `Rear sling ${g.valid ? (g.rearLen/1000).toFixed(2)+' m' + (tiltDeg ? ' — SLACK' : ' @ '+g.rearDeg.toFixed(0)+'°') : '—'}`;
-    if (tiltDeg) {   // slack leg is short: label beside the rear lug, clear of "Crane hook" — left of it if the right side has no room
+    const rearTxt = `Rear sling ${g.valid ? (g.rearLen/1000).toFixed(2)+' m' + (slackRear ? ' — SLACK' : ' @ '+(tiltRear ? legDeg(rB) : g.rearDeg).toFixed(0)+'°') : '—'}`;
+    if (slackRear) {   // slack leg is short: label beside the rear lug, clear of "Crane hook" — left of it if the right side has no room
       const fits = rLS.x + 18 + textW(rearTxt, 22) <= svgW - 4;
       ax = fits ? rLS.x + 18 : rLS.x - 18; ay = rLS.y - 10; anc = fits ? 'start' : 'end';
     }
@@ -374,7 +398,7 @@ function renderMaxirigDiagram(beam, view) {
   L2.push(`<text x="${SX(hk.x)}" y="${(Number(SY(hk.y)) - 30).toFixed(1)}" text-anchor="middle" font-weight="600">Crane hook</text>`);
 
   // ---- beam (level box girder; rotated as one body about the front-lug pin when it hangs nose-down) ----
-  if (tiltDeg) L2.push(`<g data-role="beam-body" data-tilt="${tiltDeg.toFixed(1)}" transform="rotate(${(-tiltDeg).toFixed(2)} ${SX(pinW.x)} ${SY(pinW.y)})">`);
+  if (tiltDeg) L2.push(`<g data-role="beam-body" data-tilt="${tiltDeg.toFixed(1)}"${tiltRear ? ' data-tilt-dir="rear"' : ''} transform="rotate(${(-phi).toFixed(2)} ${SX(piv.x)} ${SY(piv.y)})">`);
   L2.push(`<rect x="${SX(0)}" y="${SY(0)}" width="${Spx(L)}" height="${Spx(depth)}" fill="#d7dce1" stroke="#5b6670" stroke-width="1"/>`);
   L2.push(`<line x1="${SX(0)}" y1="${SY(0)}" x2="${SX(L)}" y2="${SY(0)}" stroke="#2b3038" stroke-width="3"/>`);
   L2.push(`<line x1="${SX(0)}" y1="${SY(-depth)}" x2="${SX(L)}" y2="${SY(-depth)}" stroke="#2b3038" stroke-width="3"/>`);
