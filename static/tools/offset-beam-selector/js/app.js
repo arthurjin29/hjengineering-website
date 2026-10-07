@@ -1,7 +1,7 @@
 let BEAMS = [];
 const $ = id => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const state = { beam: null, lugId: 1, loadKg: 10000, headMm: 3000, holeIndex: null, chainBlockMm: 3000, fixedTailMm: 0, detached: false, wing: false, rigMode: 'fixed', rig: null, frame: null, rearDeg: null, cwManual: null };
+const state = { beam: null, lugId: 1, loadKg: 10000, headMm: 3000, holeIndex: null, chainBlockMm: 3000, fixedTailMm: 0, detached: false, wing: false, rigMode: 'fixed', rig: null, frame: null, rearDeg: null, cwManual: null, cwShownIdx: null, cwShownX: null };
 
 // Structural beam mass: Maxirig self_weight_kg bundles the counterweight, so use beam_only_kg.
 function structMass(beam) { return beam.maker === 'Maxirig' ? beam.beam_only_kg : beam.self_weight_kg; }
@@ -229,7 +229,38 @@ function renderMaxirig() {
   $('diagram').innerHTML = window.renderDiagram(b, view);
   sizeDiagramColumnFromSvg();   // fixed-sling path has no frozen frame — take the aspect from the SVG
   refreshChart({ selLugId: lugId, recHole: res.pick ? res.pick.hole : null, useWing });
+  // where the block is drawn now — the drag starts from here (diagram.js draws first_hole_x_mm with no pick)
+  state.cwShownIdx = res.pick ? res.pick.holeIndex : null;
+  state.cwShownX = res.pick ? res.pick.holeXMm : b.ballast.first_hole_x_mm;
+  attachFixedDrag();
 }
+
+// Drag the counterweight on the fixed-sling figure (Arthur 2026-10-07: "like the OLB beams") — another way to
+// make the manual pick, so the dropdown follows. Pointer travel is projected onto the beam axis (data-ux/uy on
+// #cwt), so a tilted beam drags along its own length, and snapped to the nearest RATED position. The frame
+// scale is taken once at pointerdown, so a re-render that reframes the figure mid-drag keeps the mapping.
+let fxDrag = null;
+function attachFixedDrag() {
+  const svg = $('diagram').querySelector('svg'), cwt = svg && svg.querySelector('#cwt');
+  if (!cwt) return;
+  cwt.addEventListener('pointerdown', e => {
+    const scale = parseFloat(svg.getAttribute('data-scale'));
+    fxDrag = { x0: e.clientX, y0: e.clientY, startX: state.cwShownX,
+      ux: parseFloat(cwt.getAttribute('data-ux')), uy: parseFloat(cwt.getAttribute('data-uy')),
+      mmPerPx: 1 / (scale * svg.getScreenCTM().a), pid: e.pointerId };   // CTM: the SVG is letterboxed when taller than wide
+    document.addEventListener('pointermove', onFxMove);
+    document.addEventListener('pointerup', onFxUp);
+    document.addEventListener('pointercancel', onFxUp);
+    e.preventDefault();
+  });
+}
+function onFxMove(e) {
+  if (!fxDrag || e.pointerId !== fxDrag.pid) return;
+  const along = (e.clientX - fxDrag.x0) * fxDrag.ux + (e.clientY - fxDrag.y0) * fxDrag.uy;
+  const i = window.snapPosition(state.beam, state.lugId, fxDrag.startX + along * fxDrag.mmPerPx, hasWingOption(state.beam) && state.wing);
+  if (i >= 0 && i !== state.cwShownIdx) { state.cwManual = i; renderMaxirig(); }
+}
+function onFxUp() { fxDrag = null; document.removeEventListener('pointermove', onFxMove); document.removeEventListener('pointerup', onFxUp); document.removeEventListener('pointercancel', onFxUp); }
 
 function updateMaxirigPanel(b, lugId, load, g, res, useWing) {
   const panel = $('result'), p = window.maxirigPanel(b, lugId, load, g, res, useWing);
@@ -490,16 +521,15 @@ function attachDrag() {
   const cwt = svg.querySelector('#cwt'); if (!cwt) return;
   cwt.addEventListener('pointerdown', e => {
     const scale = parseFloat(svg.getAttribute('data-scale'));
-    const rect = svg.getBoundingClientRect();
-    const vbW = svg.viewBox.baseVal.width;
     drag = {
       startX: e.clientX, startHoleX: ballastHoleX(state.beam, state.holeIndex),
       // world-mm per screen-px — snap by ABSOLUTE pin position, not a single pitch. Beams with
       // unequally-spaced pins (e.g. OLB-1: −175/−80 mm) then track the real holes under the cursor.
-      mmPerPx: 1 / (scale * (rect.width / vbW))
+      mmPerPx: 1 / (scale * svg.getScreenCTM().a), pid: e.pointerId   // CTM, not the box width: letterboxed SVGs
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
     e.preventDefault();
   });
 
@@ -507,15 +537,14 @@ function attachDrag() {
   const cbk = svg.querySelector('#chainblk'); if (!cbk) return;
   cbk.addEventListener('pointerdown', e => {
     const scale = parseFloat(svg.getAttribute('data-scale'));
-    const rect = svg.getBoundingClientRect();
-    const vbW = svg.viewBox.baseVal.width;
     cbDrag = {
       startX: e.clientX, startY: e.clientY, startCb: state.chainBlockMm,
       ux: parseFloat(cbk.getAttribute('data-ux')), uy: parseFloat(cbk.getAttribute('data-uy')),
-      mmPerPx: 1 / (scale * (rect.width / vbW))
+      mmPerPx: 1 / (scale * svg.getScreenCTM().a), pid: e.pointerId   // CTM, not the box width: letterboxed SVGs
     };
     document.addEventListener('pointermove', onCbMove);
     document.addEventListener('pointerup', onCbUp);
+    document.addEventListener('pointercancel', onCbUp);
     e.preventDefault();
   });
 }
@@ -524,7 +553,7 @@ function ballastHoleX(beam, i) {
   return b.holes_x_mm ? b.holes_x_mm[i] : b.first_hole_x_mm + b.pitch_mm * i;
 }
 function onMove(e) {
-  if (!drag) return;
+  if (!drag || e.pointerId !== drag.pid) return;
   const targetX = drag.startHoleX + (e.clientX - drag.startX) * drag.mmPerPx;
   // nearest pin by actual position (handles unequal spacing + either pitch sign)
   let best = state.holeIndex, bestD = Infinity;
@@ -535,18 +564,18 @@ function onMove(e) {
   }
   if (best !== state.holeIndex) { state.holeIndex = best; render(); }
 }
-function onUp() { drag = null; document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); }
+function onUp() { drag = null; document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); }
 
 // Chain-block drag: project pointer travel onto the rear-leg direction (down-leg = lengthen).
 let cbDrag = null;
 function onCbMove(e) {
-  if (!cbDrag) return;
+  if (!cbDrag || e.pointerId !== cbDrag.pid) return;
   const along = (e.clientX - cbDrag.startX) * cbDrag.ux + (e.clientY - cbDrag.startY) * cbDrag.uy;
   const cb = state.rig.chain_block_mm;
   const v = clamp(cbDrag.startCb + along * cbDrag.mmPerPx, cb.min, cb.max);
   if (Math.abs(v - state.chainBlockMm) >= 1) { state.chainBlockMm = v; $('cb').value = v; updateCbLabel(); render(); }
 }
-function onCbUp() { cbDrag = null; document.removeEventListener('pointermove', onCbMove); document.removeEventListener('pointerup', onCbUp); }
+function onCbUp() { cbDrag = null; document.removeEventListener('pointermove', onCbMove); document.removeEventListener('pointerup', onCbUp); document.removeEventListener('pointercancel', onCbUp); }
 
 // ---- Find a beam mode ----
 function setMode(mode) {

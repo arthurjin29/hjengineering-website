@@ -351,7 +351,7 @@ function renderMaxirigDiagram(beam, view) {
   const frontColor = '#1f6feb', rearColor = '#0a7d2c';
 
   const L2 = [];
-  L2.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" font-family="system-ui, sans-serif" font-size="22">`);
+  L2.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" data-scale="${scale}" font-family="system-ui, sans-serif" font-size="22">`);
   L2.push(`<text x="8" y="20" font-size="19" fill="#c0392b" font-weight="700">${beam.id} · ${beam.name} · Tare ${((beam.self_weight_kg + wingKg)/1000).toFixed(2)} t (C/W ${((beam.counterweight_kg + wingKg)/1000).toFixed(2)} t)${view.useWing ? ` · WING WEIGHTS +${(wingKg/1000).toFixed(1)} t` : ''}</text>`);
   L2.push(beamInfoLine2(beam, view.caution ? `NOT LEVEL — rear sling slack, beam hangs ${tiltDeg ? '≈' + tiltDeg.toFixed(0) + '° ' : ''}nose-down`
     : tiltRear ? `NOT LEVEL — over-balanced, beam tilts ≈${tiltDeg < 1 ? tiltDeg.toFixed(1) : tiltDeg.toFixed(0)}° rear-down` : null, tiltRear ? '#5b6670' : null));
@@ -442,12 +442,16 @@ function renderMaxirigDiagram(beam, view) {
 
   // ---- counterweight block under the chosen ballast position (drawn BEFORE the letters) ----
   const cwTopY = -depth, cwBotY = -(depth + blockH);
+  // Drag handle (Arthur 2026-10-07: drag the C/W "like the OLB beams"): block + pins + middle plate. data-ux/uy
+  // = the beam axis (toward the rear) in screen coordinates, so a drag follows a tilted beam; app.js snaps.
+  L2.push(`<g id="cwt" style="cursor:grab" data-ux="${Math.cos(phi * Math.PI / 180).toFixed(4)}" data-uy="${(-Math.sin(phi * Math.PI / 180)).toFixed(4)}"><title>Drag to move the counterweight (snaps to rated positions)</title>`);
   L2.push(`<rect data-role="counterweight" x="${SX(cwCenter - blockW/2)}" y="${SY(cwTopY)}" width="${Spx(blockW)}" height="${Spx(blockH)}" rx="3" fill="${accent}" stroke="#16331f" stroke-width="1.5"/>`);
   pinHoleXs.forEach(px => L2.push(`<line data-role="cw-pin" x1="${SX(px)}" y1="${SY(-depth*0.4)}" x2="${SX(px)}" y2="${SY(cwTopY)}" stroke="#2b3038" stroke-width="2"/>`));
   if (posMarks && pick.holeIndex != null) {   // the middle plate, on the block centre = the position
     const w = Math.max(3, 30 * scale), top = Number(SY(-depth * 0.4)), bot = Number(SY(cwTopY));
     L2.push(`<rect data-role="cw-midplate" x="${(Number(SX(cwCenter)) - w / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${(bot - top).toFixed(1)}" fill="#16331f"/>`);
   }
+  L2.push(`</g>`);   // #cwt
 
   // C/W labels stay upright: under the block, at its (possibly rotated) bottom-centre. Level views draw
   // them here, before the letters (unchanged order); a tilted view draws them after the rotated body.

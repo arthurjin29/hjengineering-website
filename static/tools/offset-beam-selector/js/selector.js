@@ -256,6 +256,20 @@ function manualPick(beam, lugId, loadKg, holeIndex, wingKg) {
     overBalanced: auto.hasMoment && overKg > auto.tolKg && !levelHere });
 }
 
+// Drag snapping for the fixed-sling counterweight (Arthur 2026-10-07: "drag ... like the OLB beams"): the
+// RATED position (chart cell present) nearest a beam-x in mm. Struck-out / NO LIFT / PIN ONLY cells are
+// skipped, as they are disabled in the dropdown. -1 when the lug rates no position at all.
+function snapPosition(beam, lugId, targetXMm, useWing) {
+  const col = chartFor(beam, useWing)[String(lugId)] || {};
+  let best = -1, bestD = Infinity;
+  beam.ballast.holes.forEach((h, i) => {
+    if (col[h] == null) return;
+    const d = Math.abs(holeXAt(beam, i) - targetXMm);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
 // Levelling capacity (Arthur 2026-10-06, shown in brackets next to the chart capacity): the most load
 // that both sits within the chart cell (capped at WLL) AND keeps the beam level at that position —
 // min(cell, moment-calc balancing load), rounded to the kg, never below 0. Only for beams that opt in
@@ -607,4 +621,4 @@ function findSuitableBeams(beams, loadKg, offsetM) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, levelPick, manualPick, levellingKg, capacityLabel, maxirigPanel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
+if (typeof module !== 'undefined') module.exports = { lugById, lugLabel, levelPick, manualPick, snapPosition, levellingKg, capacityLabel, maxirigPanel, solveHeadMm, balanceBallast, positionAllowed, chartFor, capacityCheck, slingGeometry, balancingLoad, evaluateHole, selectConfig, combinedCogX, suspensionGeometry, slingTensions, chartGuide, maxWllAtLug, fixedSlingGeometry, chartTableHtml, resolveRig, findSuitableBeams };
